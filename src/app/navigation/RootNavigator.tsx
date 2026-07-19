@@ -1,21 +1,16 @@
 import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import type { RootStackParamList } from './types';
+import { useAuthStore } from '../../store/authStore';
 
 import AuthStack from './AuthStack';
 import SetupWizardStack from './SetupWizardStack';
 import MainTabNavigator from './MainTabNavigator';
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
-
 export default function RootNavigator() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="AuthStack" screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="AuthStack" component={AuthStack} />
-        <Stack.Screen name="SetupWizardStack" component={SetupWizardStack} />
-        <Stack.Screen name="MainTabs" component={MainTabNavigator} />
-      </Stack.Navigator>
+      {isAuthenticated ? <MainTabNavigator /> : <AuthStack />}
     </NavigationContainer>
   );
 }

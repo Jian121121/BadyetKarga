@@ -33,7 +33,15 @@
             "minSdkVersion": 24
           }
         }
-      ]
-    ]
+      ],
+      "expo-sqlite",
+      "expo-secure-store"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "443a7591-3d29-4c21-9cba-b536f8143259"
+      }
+    },
+    "owner": "jiandeguzman"
   }
 }

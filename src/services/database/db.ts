@@ -29,4 +29,17 @@ export function initDatabase() {
       createdAt TEXT NOT NULL
     );
   `);
+
+  db!.execSync(`
+  CREATE TABLE IF NOT EXISTS weekly_availability (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    familyMemberId INTEGER NOT NULL,
+    dayOfWeek TEXT NOT NULL,
+    breakfast INTEGER NOT NULL DEFAULT 1,
+    lunch INTEGER NOT NULL DEFAULT 1,
+    snack INTEGER NOT NULL DEFAULT 1,
+    dinner INTEGER NOT NULL DEFAULT 1
+  );
+`);
+
 }

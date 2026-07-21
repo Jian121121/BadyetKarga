@@ -74,4 +74,17 @@ db!.execSync(`
   );
 `);
 
+
+db!.execSync(`
+  CREATE TABLE IF NOT EXISTS grocery_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER NOT NULL,
+    ingredientName TEXT NOT NULL,
+    category TEXT NOT NULL,
+    estimatedCost REAL NOT NULL,
+    isChecked INTEGER NOT NULL DEFAULT 0
+  );
+`);
+
+
 }

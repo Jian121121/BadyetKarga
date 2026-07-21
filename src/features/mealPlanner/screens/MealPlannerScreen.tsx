@@ -3,8 +3,8 @@ import { ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { PlannerStackParamList } from '../../../app/navigation/types';
 import { colors, typography, spacing, radii } from '../../../shared/theme';
-import { useAuthStore } from '../../../store/authStore';
-import { useMealPlanStore } from '../../../store/mealPlanStore';
+import { useAuthStore } from '../../../store/authStore'
+import { useMealPlanStore } from '../../../store/mealPlanStore'
 
 type Props = NativeStackScreenProps<PlannerStackParamList, 'MealPlanner'>;
 

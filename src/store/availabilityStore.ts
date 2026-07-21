@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { setAvailability, getAvailabilityForMember, type Availability } from '../services/database/availabilityRepository';
+import { setAvailability, getAvailabilityForMember, type Availability } from '../../../services/database/availabilityRepository';
 
 interface AvailabilityState {
   availability: Availability[];

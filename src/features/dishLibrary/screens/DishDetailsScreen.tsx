@@ -3,8 +3,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { PlannerStackParamList } from '../../../app/navigation/types';
 import { colors, typography, spacing } from '../../../shared/theme';
 import Button from '../../../shared/components/Button';
-import { useMealPlanStore } from '../../../store/mealPlanStore';
-import { useAuthStore } from '../../../store/authStore';
+import { useMealPlanStore } from '../../../store/mealPlanStore'
+import { useAuthStore } from '../../../store/authStore'
 
 type Props = NativeStackScreenProps<PlannerStackParamList, 'DishDetails'>;
 

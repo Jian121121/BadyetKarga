@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { getAllDishes, addMealPlanEntry, getMealPlanForUser, type Dish, type MealPlanEntry } from '../services/database/mealPlanRepository';
+import { getAllDishes, addMealPlanEntry, getMealPlanForUser, type Dish, type MealPlanEntry } from '../../../services/database/mealPlanRepository';
 
 interface MealPlanState {
   dishes: Dish[];

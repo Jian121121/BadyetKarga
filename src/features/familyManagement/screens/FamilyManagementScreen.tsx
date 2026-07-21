@@ -4,7 +4,7 @@ import { colors, typography, spacing, radii } from '../../../shared/theme';
 import Button from '../../../shared/components/Button';
 import TextInput from '../../../shared/components/TextInput';
 import Card from '../../../shared/components/Card';
-import { useAuthStore } from '../../../store/authStore';
+import { useAuthStore } from '../../../store/authStore'
 import { useFamilyStore } from '../../../store/familyStore';
 
 export default function FamilyManagementScreen() {

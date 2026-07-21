@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../../../app/navigation/types';
-import { useAuthStore } from '../../../store/authStore';
+import { useAuthStore } from '../../../store/authStore'
 import { colors, typography, spacing } from '../../../shared/theme';
 import Button from '../../../shared/components/Button';
 import Card from '../../../shared/components/Card';

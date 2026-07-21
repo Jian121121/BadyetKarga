@@ -64,4 +64,14 @@ db!.execSync(`
   );
 `);
 
+db!.execSync(`
+  CREATE TABLE IF NOT EXISTS pantry_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER NOT NULL,
+    ingredientName TEXT NOT NULL,
+    quantity TEXT,
+    createdAt TEXT NOT NULL
+  );
+`);
+
 }

@@ -12,6 +12,7 @@ import {
 
 import RootNavigator from './src/app/navigation/RootNavigator';
 import { initDatabase } from './src/services/database/db';
+import { seedDishes } from './src/services/database/seedData';
 import { useAuthStore } from './src/store/authStore';
 
 export default function App() {
@@ -27,6 +28,7 @@ export default function App() {
 
   useEffect(() => {
     initDatabase();
+    seedDishes();
     initializeAuth();
   }, []);
 

@@ -1,22 +1,31 @@
+import { Platform } from 'react-native';
 import * as SQLite from 'expo-sqlite';
 
-// Opens (or creates, if it doesn't exist yet) the local database file.
-// This connection is reused everywhere else in the app — we don't want
-// multiple separate connections to the same file.
-export const db = SQLite.openDatabaseSync('badyetkarga.db');
+export const db = Platform.OS !== 'web' ? SQLite.openDatabaseSync('badyetkarga.db') : null;
 
-/**
- * Creates all tables the app needs, if they don't already exist.
- * Safe to call every time the app starts — CREATE TABLE IF NOT EXISTS
- * does nothing if the table is already there.
- */
 export function initDatabase() {
-  db.execSync(`
+  if (Platform.OS === 'web') {
+    console.log('[DB] Running on web — skipping real SQLite init, using in-memory mock.');
+    return;
+  }
+
+  db!.execSync(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       fullName TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
       passwordHash TEXT NOT NULL,
+      createdAt TEXT NOT NULL
+    );
+  `);
+
+  db!.execSync(`
+    CREATE TABLE IF NOT EXISTS family_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userId INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      allergies TEXT,
+      dietaryRestrictions TEXT,
       createdAt TEXT NOT NULL
     );
   `);

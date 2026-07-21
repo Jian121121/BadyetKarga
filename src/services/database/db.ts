@@ -42,4 +42,26 @@ export function initDatabase() {
   );
 `);
 
+
+db!.execSync(`
+  CREATE TABLE IF NOT EXISTS dishes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    estimatedCost REAL NOT NULL,
+    prepTimeMinutes INTEGER
+  );
+`);
+
+db!.execSync(`
+  CREATE TABLE IF NOT EXISTS meal_plan_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER NOT NULL,
+    dishId INTEGER NOT NULL,
+    dayOfWeek TEXT NOT NULL,
+    mealType TEXT NOT NULL,
+    createdAt TEXT NOT NULL
+  );
+`);
+
 }

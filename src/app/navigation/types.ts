@@ -60,6 +60,9 @@ export type AnalyticsStackParamList = {
 
 export type ProfileStackParamList = {
   Profile: undefined;
+  FamilyManagement: undefined;
+  WeeklyAvailability: undefined;
+  Pantry: undefined;
 };
 
 // ── Root Navigator ──────────────────────────────────────

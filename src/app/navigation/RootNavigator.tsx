@@ -1,5 +1,5 @@
 import { NavigationContainer } from '@react-navigation/native';
-import { useAuthStore } from '../../../store/authStore';
+import { useAuthStore } from '../../store/authStore';
 
 import AuthStack from './AuthStack';
 import SetupWizardStack from './SetupWizardStack';

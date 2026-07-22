@@ -1,7 +1,6 @@
 import { create } from 'zustand';
-import { registerUser, loginUser, getUserById, type User } from '../../../services/database/userRepository';
-import { saveSession, getSession, clearSession } from '../../../services/database/sessionService';
-
+import { registerUser, loginUser, getUserById, type User } from '../services/database/userRepository';
+import { saveSession, getSession, clearSession } from '../services/database/sessionService';
 interface AuthState {
   isAuthenticated: boolean;
   currentUser: User | null;

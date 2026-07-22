@@ -81,10 +81,26 @@ db!.execSync(`
     userId INTEGER NOT NULL,
     ingredientName TEXT NOT NULL,
     category TEXT NOT NULL,
+    quantity REAL NOT NULL,
+    unit TEXT NOT NULL,
     estimatedCost REAL NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'high',
+    usedInDishes TEXT NOT NULL DEFAULT '',
     isChecked INTEGER NOT NULL DEFAULT 0
   );
 `);
 
+
+db!.execSync(`
+  CREATE TABLE IF NOT EXISTS dish_ingredients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dishId INTEGER NOT NULL,
+    ingredientName TEXT NOT NULL,
+    quantity REAL NOT NULL,
+    unit TEXT NOT NULL,
+    estimatedPrice REAL NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'high'
+  );
+`);
 
 }

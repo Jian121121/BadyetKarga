@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { addFamilyMember, getFamilyMembers, deleteFamilyMember, type FamilyMember } from '../../../services/database/familyRepository';
+import { addFamilyMember, getFamilyMembers, deleteFamilyMember, type FamilyMember } from '../services/database/familyRepository';
 
 interface FamilyState {
   members: FamilyMember[];

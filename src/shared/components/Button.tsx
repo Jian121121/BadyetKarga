@@ -55,8 +55,8 @@ export default function Button({
 
 const styles = StyleSheet.create({
   base: {
-    height: 56,
-    borderRadius: radii.full,
+    minHeight: 48,
+    borderRadius: radii.lg,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
@@ -67,20 +67,23 @@ const styles = StyleSheet.create({
   outlined: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: colors.outline,
+    borderColor: colors.primary,
   },
   text: {
     backgroundColor: 'transparent',
-    height: 44,
+    minHeight: 44,
   },
   disabled: {
     opacity: 0.4,
   },
   pressed: {
-    opacity: 0.85,
+    opacity: 0.88,
+    transform: [{ scale: 0.98 }],
   },
   label: {
-    ...typography.titleMd,
+    ...typography.labelLg,
+    fontSize: 14,
+    letterSpacing: 0.2,
   },
   labelOnFilled: {
     color: colors.onPrimary,

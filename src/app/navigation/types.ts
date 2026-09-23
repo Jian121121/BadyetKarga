@@ -5,23 +5,25 @@
 export type AuthStackParamList = {
   Splash: undefined;
   Onboarding: undefined;
-  SetupWizardWelcome: undefined;
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
+  LegalDocument: { document: 'terms' | 'privacy' };
 };
 
 // ── Setup Wizard Stack ──────────────────────────────────
-// Only reachable after Register — 8 remaining steps + Complete
+// Shown after login when household settings don't exist yet.
+// 9 steps: Welcome → data collection → Complete (commits everything).
 export type SetupWizardStackParamList = {
-  HouseholdInfo: undefined;
-  HouseholdGoal: undefined;
-  FamilyMembers: undefined;
-  AllergiesAndDiet: undefined;
-  WeeklyAvailability: undefined;
-  PantrySetup: undefined;
-  CookingPreferences: undefined;
-  WizardComplete: undefined;
+  Welcome: undefined;
+  Household: undefined;
+  Goal: undefined;
+  Family: undefined;
+  Allergies: undefined;
+  Availability: undefined;
+  Pantry: undefined;
+  Cooking: undefined;
+  Complete: undefined;
 };
 
 // ── Main Tab Navigator ──────────────────────────────────
@@ -44,8 +46,9 @@ export type HomeStackParamList = {
 
 export type PlannerStackParamList = {
   MealPlanner: undefined;
-  DishLibrary: undefined;
-  DishDetails: { dishId: string }; // example: DishDetails needs to know WHICH dish
+  DishLibrary: { lockSlot?: boolean };
+  DishDetails: { dishId: string; fromPlanner?: boolean; pickSlot?: boolean };
+  AddDish: undefined; // user-created dish with own ingredients & prices
 };
 
 export type GroceriesStackParamList = {
@@ -63,6 +66,10 @@ export type ProfileStackParamList = {
   FamilyManagement: undefined;
   WeeklyAvailability: undefined;
   Pantry: undefined;
+  EditHousehold: undefined;
+  ChangePassword: undefined;
+  PrivacyPolicy: undefined;
+  About: undefined;
 };
 
 // ── Root Navigator ──────────────────────────────────────

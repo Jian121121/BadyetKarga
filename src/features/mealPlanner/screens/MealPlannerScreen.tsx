@@ -9,6 +9,7 @@ import {
   Image,
   Modal,
 } from 'react-native';
+import BrandLogo from '../../../shared/components/BrandLogo';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +17,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { PlannerStackParamList } from '../../../app/navigation/types';
 import { colors, typography, spacing, radii } from '../../../shared/theme';
 import FadeIn from '../../../shared/motion/FadeIn';
+import GlassView from '../../../shared/components/GlassView';
 import { useAuthStore } from '../../../store/authStore';
 import { useMealPlanStore } from '../../../store/mealPlanStore';
 import { useHouseholdStore } from '../../../store/householdStore';
@@ -24,7 +26,7 @@ import {
   WEEK_MEALS,
   WEEK_DAYS,
   getWeekDateRangeLabel,
-  dayLabelForWeek,
+  dateForWeekDay,
   getWeekStart,
   getPlanDays,
   msUntilNextWeekStart,
@@ -35,6 +37,7 @@ import {
   PLAN_DURATION_OPTIONS,
   calculateBudgetBreakdown,
 } from '../../../shared/utils/householdServing';
+import { formatBudgetBufferSummary } from '../../../algorithms/budgetBufferCalculator';
 import { parseSelectedGoals } from '../../../services/database/householdRepository';
 import { useState } from 'react';
 
@@ -87,7 +90,6 @@ export default function MealPlannerScreen({ navigation }: Props) {
     removeEntry,
     clearWeekPlan,
     generateWeek,
-    autoFillDay,
     isGenerating,
     pendingNewWeekPrompt,
     dismissNewWeekPrompt,
@@ -100,6 +102,7 @@ export default function MealPlannerScreen({ navigation }: Props) {
   } = useMealPlanStore();
 
   const [durationModalOpen, setDurationModalOpen] = useState(false);
+  const [budgetOpen, setBudgetOpen] = useState(false);
   const [selectedDayQuick, setSelectedDayQuick] = useState<string>('Mon');
   const [selectedGenerationDays, setSelectedGenerationDays] = useState<string[]>([...WEEK_DAYS]);
   const scrollRef = useRef<ScrollView>(null);
@@ -255,6 +258,16 @@ export default function MealPlannerScreen({ navigation }: Props) {
     );
   };
 
+  const committedSpend = weeklyActualSpend + groceryTotal;
+  const budgetRatio =
+    usableBudget > 0 ? Math.min(1, Math.max(0, committedSpend / usableBudget)) : 0;
+  const budgetLabel =
+    weeklyBudget <= 0
+      ? 'Set a weekly budget in Profile'
+      : remainingUsable >= 0
+        ? `₱${remainingUsable.toFixed(0)} left`
+        : `₱${Math.abs(remainingUsable).toFixed(0)} over`;
+
   const handleGenerate = async (durationDays = planDurationDays, selectedDays?: string[]) => {
     if (!currentUser || isGenerating) return;
     setPlanDurationDays(durationDays);
@@ -278,26 +291,19 @@ export default function MealPlannerScreen({ navigation }: Props) {
   return (
     <View style={[styles.root, { paddingTop: insets.top + spacing.sm }]}>
       <View style={styles.topBar}>
-        <Text style={styles.brand}>BadyetKarga</Text>
+        <BrandLogo size={28} style={styles.brand} />
       </View>
 
-      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <FadeIn>
+      <View style={styles.sticky}>
         <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Weekly Planner</Text>
-            <Text style={styles.dateRange}>{getWeekDateRangeLabel(weekStart)}</Text>
-          </View>
-          <Text style={styles.weekScopeLabel}>Monday to Sunday</Text>
+          <Text style={styles.title}>Weekly Planner</Text>
+          <Text style={styles.dateRange}>{getWeekDateRangeLabel(weekStart)}</Text>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.quickDayRow}
-        >
+        <View style={styles.weekStrip}>
           {WEEK_DAYS.map((day) => {
             const isActive = selectedDayQuick === day;
+            const open = openSlotsForDay(day);
             return (
               <Pressable
                 key={day}
@@ -308,15 +314,83 @@ export default function MealPlannerScreen({ navigation }: Props) {
                     scrollRef.current?.scrollTo({ y: Math.max(0, offset - spacing.sm), animated: true });
                   }
                 }}
-                style={[styles.quickDayChip, isActive && styles.quickDayChipActive]}
+                style={[styles.weekChip, isActive && styles.weekChipActive]}
               >
-                <Text style={isActive ? styles.quickDayChipTextActive : styles.quickDayChipText}>
-                  {day}
+                <Text style={isActive ? styles.weekChipDayActive : styles.weekChipDay}>{day}</Text>
+                <Text style={isActive ? styles.weekChipDateActive : styles.weekChipDate}>
+                  {dateForWeekDay(weekStart, day).getDate()}
                 </Text>
+                <View style={[styles.weekDot, open > 0 && styles.weekDotOpen]} />
               </Pressable>
             );
           })}
-        </ScrollView>
+        </View>
+
+        <Pressable onPress={() => setBudgetOpen((open) => !open)}>
+          <GlassView style={styles.budgetCard}>
+            <View style={styles.budgetSummaryRow}>
+              <MaterialIcons name="account-balance-wallet" size={18} color={colors.primary} />
+              <Text style={[styles.budgetSummary, remainingUsable < 0 && styles.budgetRemainingOver]} numberOfLines={1}>
+                {budgetLabel}
+              </Text>
+              <MaterialIcons
+                name={budgetOpen ? 'expand-less' : 'expand-more'}
+                size={20}
+                color={colors.onSurfaceVariant}
+              />
+            </View>
+            <View style={styles.budgetTrack}>
+              <View
+                style={[
+                  styles.budgetFill,
+                  { width: `${Math.round(budgetRatio * 100)}%` },
+                  remainingUsable < 0 && styles.budgetFillOver,
+                ]}
+              />
+            </View>
+            {budgetOpen && (
+              <>
+                <View style={styles.budgetGrid}>
+                  <View style={styles.budgetGridItem}>
+                    <Text style={styles.budgetMiniLabel}>TOTAL BUDGET</Text>
+                    <Text style={styles.budgetMiniValue}>₱{weeklyBudget.toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.budgetGridItem}>
+                    <Text style={styles.budgetMiniLabel}>RESERVED BUFFER</Text>
+                    <Text style={styles.budgetMiniReserved}>₱{reservedBuffer.toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.budgetGridItem}>
+                    <Text style={styles.budgetMiniLabel}>AVAILABLE MEAL BUDGET</Text>
+                    <Text style={styles.budgetMiniUsable}>₱{usableBudget.toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.budgetGridItem}>
+                    <Text style={styles.budgetMiniLabel}>ESTIMATED CART NEEDS</Text>
+                    <Text style={styles.budgetMiniCost}>₱{groceryTotal.toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.budgetGridItem}>
+                    <Text style={styles.budgetMiniLabel}>ACTUAL PURCHASES</Text>
+                    <Text style={styles.budgetMiniCost}>₱{weeklyActualSpend.toFixed(2)}</Text>
+                  </View>
+                </View>
+                <View style={styles.budgetRemainingRow}>
+                  <Text style={styles.budgetRemainingLabel}>LEFT AFTER PURCHASES + CART</Text>
+                  <Text style={[styles.budgetRemainingValue, remainingUsable < 0 && styles.budgetRemainingOver]}>
+                    ₱{remainingUsable.toFixed(2)}
+                  </Text>
+                </View>
+                {weeklyBudget > 0 && (
+                  <Text style={styles.budgetBufferNote}>
+                    {formatBudgetBufferSummary(budgetBufferPct, weeklyBudget, settings?.visitorBufferServings ?? 0)}
+                  </Text>
+                )}
+              </>
+            )}
+          </GlassView>
+        </Pressable>
+      </View>
+
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <FadeIn>
 
         {selectedGoals.length > 0 && (
           <ScrollView
@@ -391,16 +465,23 @@ export default function MealPlannerScreen({ navigation }: Props) {
           const open = openSlotsForDay(day);
           const dayEaters = dayEatersOf(day);
           const isSelectedDay = selectedDayQuick === day;
+          const planned = WEEK_MEALS.some((meal) => getEntry(day, meal));
+          const dayStatus = open > 0 ? `${open} open` : planned ? 'Full' : 'No meals';
           return (
-            <View
+            <GlassView
               key={day}
               onLayout={(event) => {
                 dayOffsets.current[day] = event.nativeEvent.layout.y;
               }}
-              style={[styles.dayBlock, isSelectedDay && styles.dayBlockSelected]}
+              style={[styles.dayCard, isSelectedDay && styles.dayCardSelected]}
             >
               <View style={styles.dayHeader}>
-                <Text style={styles.dayLabel}>{dayLabelForWeek(weekStart, day)}</Text>
+                <Text style={styles.dayLabel}>
+                  {day} {dateForWeekDay(weekStart, day).getDate()}
+                </Text>
+                <Text style={[styles.dayStatus, open === 0 && planned && styles.dayStatusFull]}>
+                  {dayStatus}
+                </Text>
               </View>
 
               {WEEK_MEALS.map((meal) => {
@@ -453,107 +534,39 @@ export default function MealPlannerScreen({ navigation }: Props) {
                     onPress={() => navigation.navigate('DishDetails', { dishId: String(entry.dishId), fromPlanner: true })}
                     style={styles.filledSlot}
                   >
-                    <View style={[styles.mealPill, { backgroundColor: pill.bg }]}>
-                      <Text style={[styles.mealPillText, { color: pill.fg }]}>
-                        {meal.toUpperCase()}
-                      </Text>
-                    </View>
+                    <View style={[styles.mealAccent, { backgroundColor: pill.fg }]} />
                     <View style={styles.slotBody}>
-                      <Text style={styles.dishName}>{entry.dishName}</Text>
+                      <View style={styles.slotTitleRow}>
+                        <Text style={styles.dishName} numberOfLines={1}>{entry.dishName}</Text>
+                        <Text style={styles.dishCost}>₱{entry.estimatedCost ?? 0}</Text>
+                      </View>
+                      <Text style={[styles.mealCaption, { color: pill.fg }]}>
+                        {meal.charAt(0).toUpperCase() + meal.slice(1)}
+                      </Text>
                       <View style={styles.metaRow}>
                         <EaterAvatars eaters={slotEaters.length ? slotEaters : dayEaters} max={3} />
                         <Text style={styles.dishMeta} numberOfLines={1}>
                           {serveLabel}
-                          {eatingLabel ? ` · ${eatingLabel}` : ''} · ₱{entry.estimatedCost ?? 0}
+                          {eatingLabel ? ` · ${eatingLabel}` : ''}
                         </Text>
                       </View>
                     </View>
                     <Pressable
                       onPress={(event) => {
                         event.stopPropagation();
-                        navigation.navigate('DishDetails', { dishId: String(entry.dishId), fromPlanner: true });
+                        handleRemove(entry.id, entry.dishName);
                       }}
-                      hitSlop={8}
-                      accessibilityLabel={`View ingredients for ${entry.dishName}`}
-                    >
-                      <MaterialIcons name="menu-book" size={20} color={colors.primary} />
-                    </Pressable>
-                    <Pressable
-                      onPress={() => handleRemove(entry.id, entry.dishName)}
                       hitSlop={10}
+                      accessibilityLabel={`Remove ${entry.dishName}`}
                     >
                       <MaterialIcons name="close" size={18} color={colors.onSurfaceVariant} />
                     </Pressable>
                   </Pressable>
                 );
               })}
-
-              {open > 0 && open < 4 && (
-                <View style={styles.autoFillRow}>
-                  <Text style={styles.openSlotsText}>{open} Slots Open</Text>
-                  <Pressable
-                    onPress={() => currentUser && autoFillDay(currentUser.id, day)}
-                    style={styles.autoFillButton}
-                  >
-                    <Text style={styles.autoFillText}>Auto-Fill Day</Text>
-                  </Pressable>
-                </View>
-              )}
-            </View>
+            </GlassView>
           );
         })}
-
-        {/* Budget Health Card with Full Breakdown */}
-        <View style={styles.budgetCard}>
-          <View style={styles.budgetCardHeader}>
-            <MaterialIcons name="account-balance-wallet" size={24} color={colors.primary} />
-            <Text style={styles.budgetStatus}>
-              {weeklyBudget <= 0
-                ? 'Set a weekly budget in Profile'
-                : remainingUsable >= 0
-                  ? `₱${remainingUsable.toFixed(0)} left after purchases and grocery needs`
-                  : `₱${Math.abs(remainingUsable).toFixed(0)} over usable budget`}
-            </Text>
-          </View>
-
-          <View style={styles.budgetGrid}>
-            <View style={styles.budgetGridItem}>
-              <Text style={styles.budgetMiniLabel}>TOTAL BUDGET</Text>
-              <Text style={styles.budgetMiniValue}>₱{weeklyBudget.toFixed(2)}</Text>
-            </View>
-            <View style={styles.budgetGridItem}>
-              <Text style={styles.budgetMiniLabel}>RESERVED BUFFER ({budgetBufferPct}%)</Text>
-              <Text style={styles.budgetMiniReserved}>₱{reservedBuffer.toFixed(2)}</Text>
-            </View>
-            <View style={styles.budgetGridItem}>
-              <Text style={styles.budgetMiniLabel}>AVAILABLE MEAL BUDGET</Text>
-              <Text style={styles.budgetMiniUsable}>₱{usableBudget.toFixed(2)}</Text>
-            </View>
-            <View style={styles.budgetGridItem}>
-              <Text style={styles.budgetMiniLabel}>ESTIMATED CART NEEDS</Text>
-              <Text style={styles.budgetMiniCost}>₱{groceryTotal.toFixed(2)}</Text>
-            </View>
-            <View style={styles.budgetGridItem}>
-              <Text style={styles.budgetMiniLabel}>ACTUAL PURCHASES</Text>
-              <Text style={styles.budgetMiniCost}>₱{weeklyActualSpend.toFixed(2)}</Text>
-            </View>
-          </View>
-
-          <View style={styles.budgetRemainingRow}>
-            <Text style={styles.budgetRemainingLabel}>LEFT AFTER PURCHASES + CART</Text>
-            <Text
-              style={[
-                styles.budgetRemainingValue,
-                remainingUsable < 0 && styles.budgetRemainingOver,
-              ]}
-            >
-              ₱{remainingUsable.toFixed(2)}
-            </Text>
-          </View>
-          <Text style={styles.budgetBufferNote}>
-            * ₱{reservedBuffer.toFixed(2)} buffer is protected and reserved for unexpected needs.
-          </Text>
-        </View>
         </FadeIn>
       </ScrollView>
 
@@ -561,11 +574,18 @@ export default function MealPlannerScreen({ navigation }: Props) {
       <Modal
         visible={durationModalOpen}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setDurationModalOpen(false)}
       >
-        <Pressable style={styles.modalBackdrop} onPress={() => setDurationModalOpen(false)}>
-          <View style={styles.modalCard}>
+        <View style={[styles.modalBackdrop, { paddingBottom: spacing.marginMobile + insets.bottom }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => setDurationModalOpen(false)} />
+          <GlassView style={styles.modalCard} onStartShouldSetResponder={() => true}>
+            <View style={styles.sheetHandle} />
+            <ScrollView
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.modalScrollContent}
+            >
             <Text style={styles.modalTitle}>Auto-Plan Days</Text>
             <Text style={styles.modalSubtitle}>Choose the days to generate. Other days will stay unchanged.</Text>
             {PLAN_DURATION_OPTIONS.map((opt) => {
@@ -604,18 +624,10 @@ export default function MealPlannerScreen({ navigation }: Props) {
             <Pressable onPress={generateSelectedDays} style={styles.generateModalButton}>
               <Text style={styles.generateModalButtonText}>Generate Selected Days</Text>
             </Pressable>
-          </View>
-        </Pressable>
+            </ScrollView>
+          </GlassView>
+        </View>
       </Modal>
-
-      <Pressable
-        style={[styles.fab, { bottom: spacing.lg + insets.bottom }]}
-        onPress={() => {
-          navigation.navigate('DishLibrary', { lockSlot: false });
-        }}
-      >
-        <MaterialIcons name="add" size={28} color={colors.onPrimary} />
-      </Pressable>
     </View>
   );
 }
@@ -629,11 +641,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.marginMobile,
     height: 44,
   },
-  brand: { ...typography.titleLg, color: colors.onSurface, textAlign: 'center' },
-  scroll: { paddingHorizontal: spacing.marginMobile, paddingBottom: 100 },
-  title: { ...typography.headlineLgMobile, color: colors.onSurface, marginTop: spacing.sm },
-  dateRange: { ...typography.bodyMd, color: colors.onSurfaceVariant },
-  weekScopeLabel: { ...typography.labelLg, color: colors.onSurfaceVariant },
+  brand: { alignSelf: 'center' },
+  sticky: {
+    paddingHorizontal: spacing.marginMobile,
+    gap: spacing.sm,
+    paddingBottom: spacing.sm,
+  },
+  scroll: { paddingHorizontal: spacing.marginMobile, paddingBottom: spacing.xl },
+  title: { ...typography.headlineLgMobile, color: colors.onSurface },
+  dateRange: { ...typography.bodyMd, color: colors.onSurfaceVariant, marginTop: 2 },
+  weekStrip: { flexDirection: 'row', gap: 4 },
+  weekChip: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.lg,
+    backgroundColor: colors.glass,
+    borderWidth: 1,
+    borderColor: colors.glassEdge,
+  },
+  weekChipActive: {
+    backgroundColor: 'rgba(120,190,32,0.18)',
+    borderColor: colors.primary,
+  },
+  weekChipDay: { ...typography.labelLg, fontSize: 10, color: colors.onSurfaceVariant },
+  weekChipDayActive: { ...typography.labelLg, fontSize: 10, color: colors.primary },
+  weekChipDate: { ...typography.titleMd, fontSize: 14, color: colors.onSurface },
+  weekChipDateActive: { ...typography.titleMd, fontSize: 14, color: colors.primary },
+  weekDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: 'transparent' },
+  weekDotOpen: { backgroundColor: colors.primary },
   budgetHint: {
     ...typography.labelLg,
     fontSize: 12,
@@ -729,25 +766,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.onPrimary,
   },
-  dayBlock: { marginBottom: spacing.lg },
-  dayBlockSelected: {
-    borderRadius: radii.xl,
-    padding: spacing.xs,
-    backgroundColor: colors.surfaceContainerLow,
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
+  dayCard: { marginBottom: spacing.md, padding: spacing.sm },
+  dayCardSelected: { borderColor: colors.primary },
   dayHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: spacing.sm,
   },
-  dayLabel: {
-    ...typography.labelLg,
-    letterSpacing: 1,
-    color: colors.onSurfaceVariant,
-  },
+  dayLabel: { ...typography.titleMd, fontSize: 16, color: colors.onSurface },
+  dayStatus: { ...typography.labelLg, fontSize: 12, color: colors.onSurfaceVariant },
+  dayStatusFull: { color: colors.primary },
   peopleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -785,22 +814,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    marginBottom: spacing.xs,
   },
-  mealPill: {
-    borderRadius: radii.default,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-  },
-  mealPillText: { ...typography.labelLg, fontSize: 10, fontWeight: '700' },
+  mealAccent: { width: 4, alignSelf: 'stretch', borderRadius: radii.full },
   slotBody: { flex: 1 },
-  dishName: { ...typography.titleMd, fontSize: 16, color: colors.onSurface },
-  dishMeta: { ...typography.bodyMd, fontSize: 12, color: colors.secondary, marginTop: 2 },
+  slotTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  dishName: { ...typography.titleMd, fontSize: 16, color: colors.onSurface, flex: 1 },
+  dishCost: { ...typography.labelLg, fontSize: 13, color: colors.onSurface },
+  mealCaption: { ...typography.labelLg, fontSize: 11, marginTop: 1 },
+  dishMeta: { ...typography.bodyMd, fontSize: 12, color: colors.onSurfaceVariant, flex: 1 },
   emptySlot: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -824,39 +848,17 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   unavailableText: { ...typography.bodyMd, fontSize: 12, color: colors.onSurfaceVariant, textAlign: 'center' },
-  autoFillRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: spacing.xs,
+  budgetCard: { padding: spacing.sm, gap: spacing.sm },
+  budgetSummaryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  budgetSummary: { ...typography.titleMd, fontSize: 15, color: colors.onSurface, flex: 1 },
+  budgetTrack: {
+    height: 6,
+    borderRadius: radii.full,
+    backgroundColor: 'rgba(32,37,29,0.08)',
+    overflow: 'hidden',
   },
-  openSlotsText: { ...typography.labelLg, color: colors.onSurfaceVariant },
-  autoFillButton: {
-    backgroundColor: colors.primary,
-    borderRadius: radii.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  autoFillText: { ...typography.labelLg, fontSize: 13, color: colors.onPrimary },
-  budgetCard: {
-    backgroundColor: '#f4f9f2',
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    borderRadius: radii.xl,
-    padding: spacing.md,
-    marginTop: spacing.sm,
-    marginBottom: spacing.xl,
-    gap: spacing.sm,
-  },
-  budgetCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingBottom: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.outlineVariant,
-  },
-  budgetStatus: { ...typography.titleMd, fontSize: 14, color: colors.onSurface, flex: 1 },
+  budgetFill: { height: 6, borderRadius: radii.full, backgroundColor: colors.primary },
+  budgetFillOver: { backgroundColor: colors.error },
   budgetGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -885,11 +887,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing.sm,
     paddingTop: spacing.xs,
     borderTopWidth: 1,
     borderTopColor: colors.outlineVariant,
   },
-  budgetRemainingLabel: { ...typography.titleMd, fontSize: 13, color: colors.onSurface },
+  budgetRemainingLabel: { ...typography.titleMd, fontSize: 13, color: colors.onSurface, flexShrink: 1 },
   budgetRemainingValue: { ...typography.headlineLgMobile, fontSize: 18, color: colors.primary },
   budgetRemainingOver: { color: colors.error },
   budgetBufferNote: {
@@ -898,13 +901,7 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
     fontStyle: 'italic',
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginTop: spacing.sm,
-    marginBottom: spacing.xs,
-  },
+  headerRow: { gap: 2 },
   durationSelector: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -941,15 +938,23 @@ const styles = StyleSheet.create({
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    padding: spacing.marginMobile,
+    justifyContent: 'flex-end',
+    paddingHorizontal: spacing.marginMobile,
   },
   modalCard: {
-    backgroundColor: colors.surfaceContainerLowest,
     borderRadius: radii.xl,
     padding: spacing.md,
-    gap: spacing.xs,
+    maxHeight: '85%',
   },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: radii.full,
+    backgroundColor: colors.outlineVariant,
+    marginBottom: spacing.xs,
+  },
+  modalScrollContent: { gap: spacing.xs },
   modalTitle: { ...typography.titleLg, color: colors.onSurface, marginBottom: 2 },
   modalSubtitle: { ...typography.bodyMd, color: colors.onSurfaceVariant, fontSize: 13, marginBottom: spacing.sm },
   modalOption: {
@@ -987,15 +992,4 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   generateModalButtonText: { ...typography.labelLg, color: colors.onPrimary },
-  fab: {
-    position: 'absolute',
-    right: spacing.marginMobile,
-    width: 52,
-    height: 52,
-    borderRadius: radii.full,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-  },
 });

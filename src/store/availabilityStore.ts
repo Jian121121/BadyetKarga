@@ -26,5 +26,14 @@ export const useAvailabilityStore = create<AvailabilityState>((set) => ({
     await setAvailability(familyMemberId, dayOfWeek, breakfast, lunch, snack, dinner);
     const availability = await getAvailabilityForMember(familyMemberId);
     set({ availability });
+    // Sync Weekly Planner headcount/photos without regenerating meals.
+    try {
+      const { useAuthStore } = await import('./authStore');
+      const { useMealPlanStore } = await import('./mealPlanStore');
+      const userId = useAuthStore.getState().currentUser?.id;
+      if (userId) await useMealPlanStore.getState().refreshEaters(userId);
+    } catch {
+      // ignore
+    }
   },
 }));

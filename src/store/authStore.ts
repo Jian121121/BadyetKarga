@@ -25,6 +25,25 @@ import {
   firebaseSendPasswordReset,
 } from '../services/auth/firebaseAuthService';
 import { useHouseholdStore } from './householdStore';
+import { resetLocalUserData } from '../services/database/userDataReset';
+
+/** Drops in-memory data from the previous account so nothing leaks into the next one. */
+async function resetUserScopedStores() {
+  useHouseholdStore.getState().clearSettings();
+  const [{ useSetupWizardStore }, { usePantryStore }, { useFamilyStore }, { useMealPlanStore }, { useGroceryStore }] =
+    await Promise.all([
+      import('./setupWizardStore'),
+      import('./pantryStore'),
+      import('./familyStore'),
+      import('./mealPlanStore'),
+      import('./groceryStore'),
+    ]);
+  useSetupWizardStore.getState().reset();
+  usePantryStore.getState().reset();
+  useFamilyStore.setState({ members: [] });
+  useMealPlanStore.setState({ dishes: [], entries: [], eatersBySlot: new Map(), lastGroceryEstimate: 0 });
+  useGroceryStore.setState({ items: [], weeklyActualSpend: 0 });
+}
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -57,7 +76,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const profile = await firebaseRegister(fullName, email, password);
-      await upsertLocalEmailUser(profile.fullName, profile.email, password);
+      const localUser = await upsertLocalEmailUser(profile.fullName, profile.email, password);
+      // Firebase just created this account, so any household data on this device for the
+      // same email belongs to a deleted account. Start clean so the Setup Wizard shows.
+      await resetLocalUserData(localUser.id);
+      await resetUserScopedStores();
       set({ isLoading: false });
       return true;
     } catch (err) {
@@ -95,7 +118,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await saveSession(user.id, rememberMe);
       // Email is persisted only when Remember Me is checked.
       await setRememberedEmail(rememberMe ? user.email : null);
-      useHouseholdStore.getState().clearSettings();
+      await resetUserScopedStores();
       set({ currentUser: user, isAuthenticated: true, isLoading: false });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed.';
@@ -122,7 +145,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = await upsertGoogleUser(identity);
       await saveSession(user.id, rememberMe);
       await setRememberedEmail(rememberMe ? user.email : null);
-      useHouseholdStore.getState().clearSettings();
+      await resetUserScopedStores();
       set({ currentUser: user, isAuthenticated: true, isLoading: false });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Google sign-in failed.';
@@ -138,8 +161,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Keep saved email only if the user previously opted into Remember Me.
       if (!keepEmail) await setRememberedEmail(null);
     } finally {
-      useHouseholdStore.getState().clearSettings();
       set({ currentUser: null, isAuthenticated: false });
+      await resetUserScopedStores();
     }
   },
 

@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Modal,
   Animated,
+  useWindowDimensions,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -16,32 +17,40 @@ import { colors, typography, spacing, radii } from '../../../shared/theme';
 import Button from '../../../shared/components/Button';
 import TextInput from '../../../shared/components/TextInput';
 import WizardShell from '../components/WizardShell';
-import { useSetupWizardStore } from '../../../store/setupWizardStore';
+import { useSetupWizardStore, draftBudgetBuffer } from '../../../store/setupWizardStore';
 import { decimalOnly, nameTextOnly } from '../../../shared/utils/validation';
-import { RELIGION_OPTIONS, RELIGION_DESCRIPTIONS } from '../../../shared/constants/religion';
 import {
-  VISITOR_BUFFER_OPTIONS,
-  calculateBudgetBreakdown,
-  recommendBudgetBufferPercentage,
-} from '../../../shared/utils/householdServing';
+  RELIGION_OPTIONS,
+  RELIGION_DESCRIPTIONS,
+  usesCustomFoodRestrictions,
+} from '../../../shared/constants/religion';
+import FoodRestrictionPicker from '../../../shared/components/FoodRestrictionPicker';
+import { VISITOR_BUFFER_OPTIONS } from '../../../shared/utils/householdServing';
+import { formatBudgetBufferSummary } from '../../../algorithms/budgetBufferCalculator';
 
 type Props = NativeStackScreenProps<SetupWizardStackParamList, 'Household'>;
 
 const BUDGET_SUGGESTIONS = [2000, 3000, 4500, 6000, 8000];
 
 export default function WizardHouseholdScreen({ navigation }: Props) {
+  const { width: windowWidth } = useWindowDimensions();
+  const dialogWidth = Math.min(windowWidth - 48, 420);
   const {
     householdName,
     weeklyBudget,
     visitorBufferServings,
     selectedGoals,
-    mealStyles,
+    members,
     currency,
     setHouseholdName,
     setWeeklyBudget,
     setVisitorBufferServings,
     religion,
     setReligion,
+    customFoodRestrictions,
+    toggleCustomFoodRestriction,
+    customFoodTerms,
+    setCustomFoodTerms,
   } = useSetupWizardStore();
 
   const [visitorModalOpen, setVisitorModalOpen] = useState(false);
@@ -50,15 +59,13 @@ export default function WizardHouseholdScreen({ navigation }: Props) {
   const religionDescriptionOpacity = useRef(new Animated.Value(1)).current;
 
   const parsedBudget = parseFloat(weeklyBudget) || 0;
-  const budgetBufferPercentage = recommendBudgetBufferPercentage({
-    weeklyBudget: parsedBudget,
-    goals: selectedGoals,
-    mealStyles,
+  const { bufferPercentage, bufferAmount } = draftBudgetBuffer({
+    weeklyBudget,
+    selectedGoals,
+    members,
+    visitorBufferServings,
   });
-  const { reservedBuffer, usableBudget } = calculateBudgetBreakdown(
-    parsedBudget,
-    budgetBufferPercentage
-  );
+  const usableBudget = Math.max(0, parsedBudget - bufferAmount);
 
   useEffect(() => {
     religionDescriptionOpacity.setValue(0);
@@ -111,7 +118,8 @@ export default function WizardHouseholdScreen({ navigation }: Props) {
 
         <Text style={styles.sectionHeader}>Unexpected Visitor Buffer</Text>
         <Text style={styles.fieldHint}>
-          Reserves extra meal servings when relatives or unexpected guests eat with your family.
+          Cooks extra servings at lunch and dinner for relatives or guests who drop by, and
+          sets aside a little more of your budget for them.
         </Text>
         <Pressable style={styles.dropdown} onPress={() => setVisitorModalOpen(true)}>
           <View style={styles.dropdownContent}>
@@ -138,24 +146,18 @@ export default function WizardHouseholdScreen({ navigation }: Props) {
         {parsedBudget > 0 && (
           <View style={styles.breakdownCard}>
             <Text style={styles.breakdownTitle}>Automatic Budget Buffer</Text>
-            <Text style={styles.breakdownHint}>
-              BadyetKarga reserves this from your weekly budget, goals, and meal style. You do not
-              need to pick a percentage.
-            </Text>
-            <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>Total Budget</Text>
-              <Text style={styles.breakdownValue}>₱{parsedBudget.toFixed(2)}</Text>
-            </View>
-            <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>Reserved Buffer ({budgetBufferPercentage}%)</Text>
-              <Text style={styles.breakdownReserved}>- ₱{reservedBuffer.toFixed(2)}</Text>
+            <View style={styles.bufferSummaryRow}>
+              <MaterialIcons name="savings" size={20} color={colors.primary} />
+              <Text style={styles.bufferSummaryText}>
+                {formatBudgetBufferSummary(bufferPercentage, parsedBudget, visitorBufferServings)}
+              </Text>
             </View>
             <View style={[styles.breakdownRow, styles.breakdownTotal]}>
               <Text style={styles.breakdownUsableLabel}>Usable Meal Planning Budget</Text>
               <Text style={styles.breakdownUsableValue}>₱{usableBudget.toFixed(2)}</Text>
             </View>
             <Text style={styles.breakdownProtectedNote}>
-              * Your ₱{reservedBuffer.toFixed(2)} reserved buffer is protected and won't be spent on automated meal plans.
+              Calculated automatically and updated when your budget, goals, or household change.
             </Text>
           </View>
         )}
@@ -180,13 +182,13 @@ export default function WizardHouseholdScreen({ navigation }: Props) {
             </Text>
           </View>
         </Animated.View>
-        {religion === 'Custom' && (
-          <View style={styles.customPreferenceHint}>
-            <Text style={styles.customPreferenceTitle}>Custom preferences</Text>
-            <Text style={styles.customPreferenceText}>
-              Specific meal exceptions can be configured later in household settings.
-            </Text>
-          </View>
+        {usesCustomFoodRestrictions(religion) && (
+          <FoodRestrictionPicker
+            selected={customFoodRestrictions}
+            onToggle={toggleCustomFoodRestriction}
+            terms={customFoodTerms}
+            onChangeTerms={setCustomFoodTerms}
+          />
         )}
 
         <Text style={styles.fieldLabel}>Currency</Text>
@@ -208,7 +210,7 @@ export default function WizardHouseholdScreen({ navigation }: Props) {
         onRequestClose={() => setVisitorModalOpen(false)}
       >
         <Pressable style={styles.modalBackdrop} onPress={() => setVisitorModalOpen(false)}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { width: dialogWidth }]} onStartShouldSetResponder={() => true}>
             <Text style={styles.modalTitle}>Visitor / Extra Serving Buffer</Text>
             <Text style={styles.modalSubtitle}>
               How many extra servings should meals aim for in case guests arrive?
@@ -242,7 +244,7 @@ export default function WizardHouseholdScreen({ navigation }: Props) {
         onRequestClose={() => setBudgetModalOpen(false)}
       >
         <Pressable style={styles.modalBackdrop} onPress={() => setBudgetModalOpen(false)}>
-          <View style={styles.sheetCard} onStartShouldSetResponder={() => true}>
+          <View style={[styles.sheetCard, { width: dialogWidth }]} onStartShouldSetResponder={() => true}>
             <View style={styles.sheetHandle} />
             <Text style={styles.modalTitle}>Suggested weekly budget</Text>
             <Text style={styles.modalSubtitle}>Choose a starting point or enter your own amount above.</Text>
@@ -275,16 +277,17 @@ export default function WizardHouseholdScreen({ navigation }: Props) {
         onRequestClose={() => setReligionModalOpen(false)}
       >
         <Pressable style={styles.modalBackdrop} onPress={() => setReligionModalOpen(false)}>
-          <View style={styles.sheetCard} onStartShouldSetResponder={() => true}>
+          <View style={[styles.sheetCard, { width: dialogWidth }]} onStartShouldSetResponder={() => true}>
             <View style={styles.sheetHandle} />
             <Text style={styles.modalTitle}>Dietary preference</Text>
             <Text style={styles.modalSubtitle}>Select the household's primary consideration.</Text>
+            <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
             {RELIGION_OPTIONS.map((option) => {
               const selected = religion === option;
               return (
                 <Pressable
                   key={option}
-                  style={[styles.listOption, selected && styles.listOptionSelected]}
+                  style={[styles.listOption, styles.religionOption, selected && styles.listOptionSelected]}
                   onPress={() => {
                     setReligion(option);
                     setReligionModalOpen(false);
@@ -294,14 +297,17 @@ export default function WizardHouseholdScreen({ navigation }: Props) {
                     <View style={[styles.radio, selected && styles.radioSelected]}>
                       {selected && <View style={styles.radioDot} />}
                     </View>
-                    <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
-                      {option}
-                    </Text>
+                    <View style={styles.optionCopy}>
+                      <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
+                        {option}
+                      </Text>
+                      <Text style={styles.optionSubText}>{RELIGION_DESCRIPTIONS[option]}</Text>
+                    </View>
                   </View>
-                  {selected && <MaterialIcons name="check" size={20} color={colors.primary} />}
                 </Pressable>
               );
             })}
+            </ScrollView>
           </View>
         </Pressable>
       </Modal>
@@ -488,22 +494,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.onPrimaryContainer,
   },
-  customPreferenceHint: {
-    borderLeftWidth: 3,
-    borderLeftColor: colors.secondary,
-    paddingLeft: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  customPreferenceTitle: {
-    ...typography.labelLg,
-    color: colors.onSurface,
-  },
-  customPreferenceText: {
-    ...typography.bodyMd,
-    fontSize: 12,
-    color: colors.onSurfaceVariant,
-    marginTop: 2,
-  },
   breakdownCard: {
     backgroundColor: '#f4f9f2',
     borderWidth: 1.5,
@@ -530,6 +520,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: spacing.sm,
+  },
+  bufferSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  bufferSummaryText: {
+    flex: 1,
+    ...typography.bodyLg,
+    fontSize: 15,
+    color: colors.onSurface,
   },
   breakdownLabel: {
     ...typography.bodyMd,
@@ -555,6 +557,7 @@ const styles = StyleSheet.create({
     ...typography.titleMd,
     fontSize: 15,
     color: colors.onSurface,
+    flexShrink: 1,
   },
   breakdownUsableValue: {
     ...typography.headlineLgMobile,
@@ -591,6 +594,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center',
+    alignItems: 'center',
     padding: spacing.marginMobile,
   },
   modalCard: {
@@ -601,10 +605,10 @@ const styles = StyleSheet.create({
   },
   sheetCard: {
     backgroundColor: colors.surfaceContainerLowest,
-    borderTopLeftRadius: radii.xl,
-    borderTopRightRadius: radii.xl,
+    borderRadius: radii.xl,
     padding: spacing.marginMobile,
     gap: spacing.xs,
+    maxHeight: '85%',
   },
   sheetHandle: {
     alignSelf: 'center',
@@ -625,6 +629,19 @@ const styles = StyleSheet.create({
   },
   listOptionSelected: {
     backgroundColor: colors.primaryContainer,
+  },
+  religionOption: {
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 0,
+    borderRadius: radii.lg,
+    marginBottom: 2,
+  },
+  optionCopy: { flex: 1 },
+  optionSubText: {
+    ...typography.bodyMd,
+    fontSize: 11,
+    color: colors.onSurfaceVariant,
+    marginTop: 2,
   },
   radioRow: {
     flexDirection: 'row',

@@ -22,6 +22,8 @@ export interface HouseholdSettings {
   /** JSON-encoded string[] of selected goals */
   selectedGoals?: string;
   planDurationDays?: number;
+  /** JSON-encoded FoodRestrictionKey[]; used when religion is "Other" or "Custom" */
+  customFoodRestrictions?: string;
 }
 
 export function parseMealStyles(settings: HouseholdSettings | null | undefined): string[] {
@@ -89,6 +91,7 @@ export async function saveHouseholdSettings(settings: HouseholdSettings): Promis
       religion: settings.religion ?? 'No Religious Restriction',
       selectedGoals: settings.selectedGoals ?? JSON.stringify([settings.householdGoal || 'Save Money']),
       planDurationDays: settings.planDurationDays ?? 7,
+      customFoodRestrictions: settings.customFoodRestrictions ?? '[]',
     };
     saveWebSettings(mockSettings);
     return;
@@ -96,8 +99,9 @@ export async function saveHouseholdSettings(settings: HouseholdSettings): Promis
   db!.runSync(
     `INSERT OR REPLACE INTO household_settings
        (userId, householdName, weeklyBudget, householdGoal, currency, cookFrequency, preferredCookTime, mealStyles,
-        totalMembers, adults, children, seniors, infantsToddlers, visitorBufferServings, budgetBufferPercentage, religion, selectedGoals, planDurationDays)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        totalMembers, adults, children, seniors, infantsToddlers, visitorBufferServings, budgetBufferPercentage, religion, selectedGoals, planDurationDays,
+        customFoodRestrictions)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
     [
       settings.userId,
       settings.householdName,
@@ -117,8 +121,18 @@ export async function saveHouseholdSettings(settings: HouseholdSettings): Promis
       settings.religion ?? 'No Religious Restriction',
       settings.selectedGoals ?? JSON.stringify([settings.householdGoal || 'Save Money']),
       settings.planDurationDays ?? 7,
+      settings.customFoodRestrictions ?? '[]',
     ]
   );
+}
+
+export async function deleteHouseholdSettings(userId: number): Promise<void> {
+  if (Platform.OS === 'web') {
+    delete mockSettings[userId];
+    saveWebSettings(mockSettings);
+    return;
+  }
+  db!.runSync(`DELETE FROM household_settings WHERE userId = ?;`, [userId]);
 }
 
 export async function getHouseholdSettings(userId: number): Promise<HouseholdSettings | null> {
@@ -140,5 +154,6 @@ export async function getHouseholdSettings(userId: number): Promise<HouseholdSet
     religion: row.religion ?? 'No Religious Restriction',
     selectedGoals: row.selectedGoals ?? JSON.stringify([row.householdGoal || 'Save Money']),
     planDurationDays: row.planDurationDays ?? 7,
+    customFoodRestrictions: row.customFoodRestrictions ?? '[]',
   };
 }

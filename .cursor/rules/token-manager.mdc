@@ -1,0 +1,33 @@
+---
+description: Save tokens by reading the Obsidian vault in docs/vault before exploring code, and keep it updated
+alwaysApply: true
+---
+
+# Token Manager
+
+The project knowledge base lives in `docs/vault/` (an Obsidian vault). Use it as the
+cheap first lookup instead of scanning the codebase.
+
+## Before working
+
+1. Read `docs/vault/Home.md`, then only the 1-2 notes linked from it that match the task.
+2. Open source files only after the notes point you to them. Prefer `Grep` for a known
+   symbol over reading whole files; use `offset`/`limit` on files over ~300 lines.
+3. Never read `node_modules/`, `package-lock.json`, `android/`, `ios/`, `assets/`
+   binaries, or `.env*` files unless the task requires it.
+
+## While working
+
+- Batch independent searches/reads in one turn; don't re-read a file you already have.
+- Don't paste large code blocks back to the user; cite file + line range instead.
+- Type-check only the touched files' output: `npx tsc --noEmit` and filter results.
+
+## After working
+
+If the change affects architecture, data flow, a table, a store, or a convention,
+update the matching vault note (keep notes short; bullet points, `[[wikilinks]]`).
+Add a one-line entry to `docs/vault/Changelog.md`:
+
+```markdown
+- 2026-10-06: Block duplicate Gmail registration (dot/plus aliases) → [[Auth]]
+```

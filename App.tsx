@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useFonts } from 'expo-font';
 import {
   PlusJakartaSans_600SemiBold,
@@ -9,11 +9,14 @@ import {
   Inter_400Regular,
   Inter_500Medium,
 } from '@expo-google-fonts/inter';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import RootNavigator from './src/app/navigation/RootNavigator';
+import AppDialog from './src/shared/components/AppDialog';
 import { initDatabase } from './src/services/database/db';
 import { seedDishes } from './src/services/database/seedData';
 import { useAuthStore } from './src/store/authStore';
+import { colors } from './src/shared/theme';
 
 export default function App() {
   const isInitializing = useAuthStore((state) => state.isInitializing);
@@ -34,11 +37,25 @@ export default function App() {
 
   if (!fontsLoaded || isInitializing) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
+      <View style={styles.loadingRoot}>
+        <ActivityIndicator size="small" color={colors.primary} />
       </View>
     );
   }
 
-  return <RootNavigator />;
+  return (
+    <SafeAreaProvider>
+      <RootNavigator />
+      <AppDialog />
+    </SafeAreaProvider>
+  );
 }
+
+const styles = StyleSheet.create({
+  loadingRoot: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+  },
+});

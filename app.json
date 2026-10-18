@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "badyetkarga",
+    "name": "BadyetKarga",
     "slug": "badyetkarga",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -16,10 +16,8 @@
     "android": {
       "package": "com.jian.badyetkarga",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#ffffff",
+        "foregroundImage": "./assets/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -40,12 +38,40 @@
       ],
       "expo-sqlite",
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "color": "#78BE20",
+          "defaultChannel": "meal-shopping-reminders"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow BadyetKarga to access your photos for a profile picture.",
+          "cameraPermission": "Allow BadyetKarga to use your camera for a profile picture."
+        }
+      ],
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ]
     ],
     "extra": {
       "eas": {
         "projectId": "443a7591-3d29-4c21-9cba-b536f8143259"
-      }
+      },
+      "googleWebClientId": "",
+      "googleAndroidClientId": "",
+      "googleIosClientId": ""
     },
     "owner": "jiandeguzman"
   }

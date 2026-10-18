@@ -9,7 +9,7 @@ interface FamilyCountCardProps {
 export default function FamilyCountCard({ count }: FamilyCountCardProps) {
   return (
     <View style={styles.card}>
-      <MaterialIcons name="group" size={36} color={colors.onTertiaryContainer} />
+      <MaterialIcons name="group" size={28} color={colors.onPrimary} />
       <Text style={styles.count}>{count}</Text>
       <Text style={styles.label}>Family Members</Text>
     </View>
@@ -18,12 +18,25 @@ export default function FamilyCountCard({ count }: FamilyCountCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.tertiaryContainer,
+    backgroundColor: colors.primary,
     borderRadius: radii.xl,
-    padding: spacing.lg,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: spacing.xs,
   },
-  count: { ...typography.displayLg, color: colors.onTertiaryContainer, marginTop: 4 },
-  label: { ...typography.labelLg, color: colors.onTertiaryContainer, marginTop: 4, textTransform: 'uppercase' },
+  count: {
+    ...typography.displayLg,
+    fontSize: 40,
+    lineHeight: 48,
+    color: colors.onPrimary,
+  },
+  label: {
+    ...typography.labelLg,
+    color: colors.onPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    opacity: 0.9,
+  },
 });

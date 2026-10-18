@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import {
   View,
   Text,
-  Image,
   Pressable,
   StyleSheet,
   ActivityIndicator,
@@ -10,6 +9,7 @@ import {
   Platform,
   ScrollView,
   Modal,
+  useWindowDimensions,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,16 +18,22 @@ import type { AuthStackParamList } from '../../../app/navigation/types';
 import { useAuthStore } from '../../../store/authStore';
 import { colors, typography, spacing, radii } from '../../../shared/theme';
 import Card from '../../../shared/components/Card';
+import BrandLogo from '../../../shared/components/BrandLogo';
 import TextInput from '../../../shared/components/TextInput';
 import { digitsOnly } from '../../../shared/utils/validation';
 import { notify } from '../../../shared/utils/confirm';
-import { normalizeGmail } from '../../../services/auth/firebaseAuthService';
+import {
+  normalizeGmail,
+  firebaseEmailRegistered,
+} from '../../../services/auth/firebaseAuthService';
 import { sendVerificationCode, verifyCode } from '../../../services/auth/otpEmailService';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
 export default function RegisterScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const modalWidth = Math.min(windowWidth - 48, 420);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
@@ -99,6 +105,10 @@ export default function RegisterScreen({ navigation }: Props) {
     }
 
     const gmail = normalizeGmail(email);
+    if (await firebaseEmailRegistered(gmail)) {
+      setLocalError('An account with this Gmail already exists. Please log in instead.');
+      return;
+    }
     await sendOtpTo(gmail, { openModal: true });
   };
 
@@ -164,14 +174,7 @@ export default function RegisterScreen({ navigation }: Props) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.brandRow}>
-            <Image
-              source={require('../../../../assets/logo.png')}
-              style={styles.brandLogo}
-              resizeMode="contain"
-            />
-            <Text style={styles.brandName}>BadyetKarga</Text>
-          </View>
+          <BrandLogo style={styles.brandRow} />
 
           <Card style={styles.card}>
             <Text style={styles.title}>Create Account</Text>
@@ -304,70 +307,94 @@ export default function RegisterScreen({ navigation }: Props) {
         transparent
         animationType="fade"
         onRequestClose={closeOtpModal}
+        statusBarTranslucent
       >
-        <KeyboardAvoidingView
-          style={styles.modalRoot}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        <View
+          style={[
+            styles.modalOverlay,
+            {
+              width: windowWidth,
+              height: windowHeight,
+              paddingTop: insets.top,
+              paddingBottom: insets.bottom,
+            },
+          ]}
         >
-          <Pressable style={styles.modalBackdrop} onPress={closeOtpModal} />
-          <View style={styles.modalCard}>
-            <View style={styles.modalIconWrap}>
-              <MaterialIcons name="mark-email-read" size={28} color={colors.primary} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeOtpModal} />
+          <KeyboardAvoidingView
+            style={[styles.modalKeyboard, { width: modalWidth, maxHeight: windowHeight * 0.9 }]}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
+          >
+            <View style={styles.modalCard}>
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+                contentContainerStyle={styles.modalScrollContent}
+              >
+                <View style={styles.modalIconWrap}>
+                  <MaterialIcons name="mark-email-read" size={28} color={colors.primary} />
+                </View>
+                <Text style={styles.modalTitle}>Verify your email</Text>
+                <Text style={styles.modalSubtitle}>
+                  We sent a 6-digit code to{'\n'}
+                  <Text style={styles.modalEmail}>{pendingGmail}</Text>
+                </Text>
+
+                <TextInput
+                  label="Verification Code"
+                  value={otp}
+                  onChangeText={(value) => {
+                    setOtp(digitsOnly(value).slice(0, 6));
+                    setModalError(null);
+                  }}
+                  keyboardType="number-pad"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  placeholder="000000"
+                  autoFocus
+                />
+
+                {modalError ? <Text style={styles.errorText}>{modalError}</Text> : null}
+
+                <Pressable
+                  style={[
+                    styles.primaryButton,
+                    (creating || isLoading || otp.length !== 6) && styles.disabled,
+                  ]}
+                  onPress={() => void handleVerifyAndCreate()}
+                  disabled={creating || isLoading || otp.length !== 6}
+                >
+                  {creating || isLoading ? (
+                    <ActivityIndicator color={colors.onPrimary} />
+                  ) : (
+                    <Text style={styles.primaryLabel}>Verify & Create Account</Text>
+                  )}
+                </Pressable>
+
+                <Pressable
+                  onPress={() => void handleResendCode()}
+                  disabled={sendingOtp || cooldown > 0}
+                  style={styles.resendRow}
+                  hitSlop={8}
+                >
+                  <Text style={[styles.resendText, (sendingOtp || cooldown > 0) && styles.muted]}>
+                    {sendingOtp
+                      ? 'Sending…'
+                      : cooldown > 0
+                        ? `Resend code in ${cooldown}s`
+                        : 'Resend code'}
+                  </Text>
+                </Pressable>
+
+                <Pressable onPress={closeOtpModal} disabled={creating || isLoading} hitSlop={8}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </Pressable>
+              </ScrollView>
             </View>
-            <Text style={styles.modalTitle}>Verify your email</Text>
-            <Text style={styles.modalSubtitle}>
-              We sent a 6-digit code to{'\n'}
-              <Text style={styles.modalEmail}>{pendingGmail}</Text>
-            </Text>
-
-            <TextInput
-              label="Verification Code"
-              value={otp}
-              onChangeText={(value) => {
-                setOtp(digitsOnly(value).slice(0, 6));
-                setModalError(null);
-              }}
-              keyboardType="number-pad"
-              autoComplete="one-time-code"
-              maxLength={6}
-              placeholder="000000"
-              autoFocus
-            />
-
-            {modalError ? <Text style={styles.errorText}>{modalError}</Text> : null}
-
-            <Pressable
-              style={[styles.primaryButton, (creating || isLoading || otp.length !== 6) && styles.disabled]}
-              onPress={() => void handleVerifyAndCreate()}
-              disabled={creating || isLoading || otp.length !== 6}
-            >
-              {creating || isLoading ? (
-                <ActivityIndicator color={colors.onPrimary} />
-              ) : (
-                <Text style={styles.primaryLabel}>Verify & Create Account</Text>
-              )}
-            </Pressable>
-
-            <Pressable
-              onPress={() => void handleResendCode()}
-              disabled={sendingOtp || cooldown > 0}
-              style={styles.resendRow}
-              hitSlop={8}
-            >
-              <Text style={[styles.resendText, (sendingOtp || cooldown > 0) && styles.muted]}>
-                {sendingOtp
-                  ? 'Sending…'
-                  : cooldown > 0
-                    ? `Resend code in ${cooldown}s`
-                    : 'Resend code'}
-              </Text>
-            </Pressable>
-
-            <Pressable onPress={closeOtpModal} disabled={creating || isLoading} hitSlop={8}>
-              <Text style={styles.cancelText}>Cancel</Text>
-            </Pressable>
-          </View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
     </View>
   );
@@ -403,16 +430,8 @@ const styles = StyleSheet.create({
     opacity: 0.2,
   },
   brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
+    alignSelf: 'center',
     marginBottom: spacing.sm,
-  },
-  brandLogo: { width: 32, height: 32 },
-  brandName: {
-    ...typography.titleLg,
-    color: colors.primary,
   },
   card: { gap: 2 },
   title: {
@@ -473,22 +492,29 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: spacing.xs,
   },
-  modalRoot: {
+  modalOverlay: {
     flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.marginMobile,
-  },
-  modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalKeyboard: {
+    alignSelf: 'center',
+    zIndex: 1,
   },
   modalCard: {
+    width: '100%',
+    maxHeight: '100%',
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: radii.xl,
-    padding: spacing.lg,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
-    gap: spacing.xs,
+    overflow: 'hidden',
+  },
+  modalScrollContent: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
   },
   modalIconWrap: {
     alignSelf: 'center',
@@ -498,7 +524,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.xs,
+    marginBottom: spacing.sm,
   },
   modalTitle: {
     ...typography.titleLg,
@@ -509,7 +535,8 @@ const styles = StyleSheet.create({
     ...typography.bodyMd,
     color: colors.onSurfaceVariant,
     textAlign: 'center',
-    marginBottom: spacing.sm,
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
   },
   modalEmail: {
     color: colors.onSurface,
@@ -517,7 +544,7 @@ const styles = StyleSheet.create({
   },
   resendRow: {
     alignItems: 'center',
-    paddingVertical: spacing.xs,
+    paddingVertical: spacing.sm,
   },
   resendText: {
     ...typography.labelLg,
@@ -533,5 +560,6 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
     textAlign: 'center',
     marginTop: spacing.xs,
+    marginBottom: spacing.xs,
   },
 });

@@ -6,8 +6,12 @@ import { colors, typography, spacing, radii } from '../../../shared/theme';
 import Button from '../../../shared/components/Button';
 import WizardShell from '../components/WizardShell';
 import { useAuthStore } from '../../../store/authStore';
-import { useSetupWizardStore } from '../../../store/setupWizardStore';
-import { recommendBudgetBufferPercentage } from '../../../shared/utils/householdServing';
+import { useSetupWizardStore, draftBudgetBuffer } from '../../../store/setupWizardStore';
+import { formatBudgetBufferSummary } from '../../../algorithms/budgetBufferCalculator';
+import {
+  FOOD_RESTRICTION_OPTIONS,
+  usesCustomFoodRestrictions,
+} from '../../../shared/constants/religion';
 
 type Props = NativeStackScreenProps<SetupWizardStackParamList, 'Complete'>;
 
@@ -26,20 +30,36 @@ export default function WizardCompleteScreen({ navigation }: Props) {
   const weeklyBudget = useSetupWizardStore((s) => s.weeklyBudget);
   const goal = useSetupWizardStore((s) => s.goal);
   const selectedGoals = useSetupWizardStore((s) => s.selectedGoals);
-  const mealStyles = useSetupWizardStore((s) => s.mealStyles);
+  const visitorBufferServings = useSetupWizardStore((s) => s.visitorBufferServings);
   const members = useSetupWizardStore((s) => s.members);
   const pantryItems = useSetupWizardStore((s) => s.pantryItems);
+  const religion = useSetupWizardStore((s) => s.religion);
+  const customFoodRestrictions = useSetupWizardStore((s) => s.customFoodRestrictions);
+  const customFoodTerms = useSetupWizardStore((s) => s.customFoodTerms);
   const isCommitting = useSetupWizardStore((s) => s.isCommitting);
   const commitError = useSetupWizardStore((s) => s.commitError);
   const commitWizard = useSetupWizardStore((s) => s.commitWizard);
 
   const familyCount = Math.max(members.length, 1);
   const budgetValue = parseFloat(weeklyBudget) || 0;
-  const bufferPct = recommendBudgetBufferPercentage({
-    weeklyBudget: budgetValue,
-    goals: selectedGoals,
-    mealStyles,
+  const { bufferPercentage } = draftBudgetBuffer({
+    weeklyBudget,
+    selectedGoals,
+    members,
+    visitorBufferServings,
   });
+
+  const avoided = usesCustomFoodRestrictions(religion)
+    ? [
+        ...FOOD_RESTRICTION_OPTIONS.filter((o) => customFoodRestrictions.includes(o.key)).map((o) => o.label),
+        ...customFoodTerms,
+      ]
+    : [];
+  const foodRulesSummary = usesCustomFoodRestrictions(religion)
+    ? avoided.length > 0
+      ? `${religion}: avoid ${avoided.join(', ')}`
+      : `${religion}: no foods selected yet`
+    : religion;
 
   const handleFinish = async () => {
     if (!currentUser || isCommitting) return;
@@ -52,6 +72,7 @@ export default function WizardCompleteScreen({ navigation }: Props) {
     iconColor: string;
     label: string;
     value: string;
+    fullWidth?: boolean;
   }> = [
     {
       icon: 'group',
@@ -72,7 +93,11 @@ export default function WizardCompleteScreen({ navigation }: Props) {
       iconBg: colors.primaryContainer,
       iconColor: colors.primary,
       label: 'BUFFER',
-      value: bufferPct > 0 ? `${bufferPct}% reserved` : 'None yet',
+      value:
+        budgetValue > 0
+          ? formatBudgetBufferSummary(bufferPercentage, budgetValue, visitorBufferServings)
+          : 'Add a weekly budget to reserve a buffer',
+      fullWidth: true,
     },
     {
       icon: 'inventory-2',
@@ -85,8 +110,19 @@ export default function WizardCompleteScreen({ navigation }: Props) {
       icon: 'track-changes',
       iconBg: colors.primaryContainer,
       iconColor: colors.primary,
-      label: 'GOAL',
-      value: shortGoal(goal),
+      label: selectedGoals.length > 1 ? 'GOALS' : 'GOAL',
+      value:
+        selectedGoals.length > 1
+          ? `${shortGoal(selectedGoals[0] ?? goal)} +${selectedGoals.length - 1} more`
+          : shortGoal(selectedGoals[0] ?? goal),
+    },
+    {
+      icon: 'restaurant',
+      iconBg: colors.secondaryContainer,
+      iconColor: colors.onSecondaryContainer,
+      label: 'FOOD RULES',
+      value: foodRulesSummary,
+      fullWidth: true,
     },
   ];
 
@@ -109,7 +145,10 @@ export default function WizardCompleteScreen({ navigation }: Props) {
 
         <View style={styles.grid}>
           {cards.map((card) => (
-            <View key={card.label} style={styles.summaryCard}>
+            <View
+              key={card.label}
+              style={[styles.summaryCard, card.fullWidth && styles.summaryCardFull]}
+            >
               <View style={[styles.iconCircle, { backgroundColor: card.iconBg }]}> 
                 <MaterialIcons name={card.icon} size={22} color={card.iconColor} />
               </View>
@@ -176,6 +215,11 @@ const styles = StyleSheet.create({
     borderRadius: radii.xl,
     padding: spacing.md,
     alignItems: 'flex-start',
+  },
+  summaryCardFull: {
+    width: '100%',
+    minWidth: 0,
+    flexGrow: 1,
   },
   iconCircle: {
     width: 40,

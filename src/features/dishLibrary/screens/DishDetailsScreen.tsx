@@ -30,7 +30,12 @@ import { decimalOnly } from '../../../shared/utils/validation';
 import BackHeader from '../../../shared/components/BackHeader';
 import { useHouseholdStore } from '../../../store/householdStore';
 import { addMealException } from '../../../services/database/mealExceptionRepository';
-import { isDishRestrictedByReligion } from '../../../shared/constants/religion';
+import {
+  isDishRestrictedByReligion,
+  parseCustomFoodRestrictions,
+  parseCustomFoodTerms,
+  restrictionSourceLabel,
+} from '../../../shared/constants/religion';
 import { listOpenMealSlots } from '../../../shared/utils/week';
 import EmptySlotPicker from '../components/EmptySlotPicker';
 
@@ -75,7 +80,7 @@ export default function DishDetailsScreen({ route, navigation }: Props) {
     if (dish) {
       getIngredientsForDish(dish.id).then(setIngredients);
     }
-  }, [dish?.id]);
+  }, [dish]);
 
   const openSlots = useMemo(
     () => listOpenMealSlots(entries, eatersBySlot),
@@ -95,10 +100,20 @@ export default function DishDetailsScreen({ route, navigation }: Props) {
 
   const addToSlot = async (day: string, meal: string) => {
     if (!currentUser || !dish) return;
-    if (isDishRestrictedByReligion(dish.name, dish.category, ingredients.map((item) => item.ingredientName), religion)) {
+    const storedRestrictions = useHouseholdStore.getState().settings?.customFoodRestrictions;
+    if (
+      isDishRestrictedByReligion(
+        dish.name,
+        dish.category,
+        ingredients.map((item) => item.ingredientName),
+        religion,
+        parseCustomFoodRestrictions(storedRestrictions),
+        parseCustomFoodTerms(storedRestrictions)
+      )
+    ) {
       confirmAction(
         'Food consideration warning',
-        `${dish.name} is not recommended for ${religion}. Allow it for this household and add it anyway?`,
+        `${dish.name} is not recommended for ${restrictionSourceLabel(religion)}. Allow it for this household and add it anyway?`,
         'Allow and add',
         () => {
           void addMealException(currentUser.id, dish.id, dish.name, true, 'User chose this dish manually')
@@ -146,7 +161,8 @@ export default function DishDetailsScreen({ route, navigation }: Props) {
   const handleDeleteDish = () => {
     if (!currentUser || !dish || !isMine || deleting) return;
     setMenuOpen(false);
-    confirmAction(
+    // Let the menu Modal finish closing; iOS can't present the dialog Modal on top of it.
+    setTimeout(() => confirmAction(
       'Delete this dish?',
       `Remove “${dish.name}” from your library? It will also leave any planned meals that used it.`,
       'Delete',
@@ -170,13 +186,16 @@ export default function DishDetailsScreen({ route, navigation }: Props) {
           }
         })(),
       { destructive: true }
-    );
+    ), 350);
   };
 
   if (!dish) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.empty}>Dish not found.</Text>
+      <View style={styles.root}>
+        <BackHeader title="Dish Details" onBack={navigation.goBack} />
+        <View style={styles.center}>
+          <Text style={styles.empty}>Dish not found.</Text>
+        </View>
       </View>
     );
   }
@@ -197,7 +216,12 @@ export default function DishDetailsScreen({ route, navigation }: Props) {
           ) : undefined
         }
       />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+      >
         <View style={styles.heroWrap}>
           <Image source={imageForDish(dish.name, dish.category, dish.imageUri)} style={styles.hero} />
           <View style={styles.heroBadges}>
@@ -342,8 +366,21 @@ export default function DishDetailsScreen({ route, navigation }: Props) {
 
       <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
         <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}>
-          <View style={[styles.menuSheet, { marginTop: insets.top + 56 }]}>
+          <View
+            style={[styles.menuSheet, { marginTop: insets.top + 56 }]}
+            onStartShouldSetResponder={() => true}
+          >
             <Text style={styles.menuTitle}>My dish</Text>
+            <Pressable
+              style={styles.menuRow}
+              onPress={() => {
+                setMenuOpen(false);
+                navigation.navigate('AddDish', { dishId: dish.id });
+              }}
+            >
+              <MaterialIcons name="edit" size={22} color={colors.primary} />
+              <Text style={styles.menuCancelText}>Edit dish</Text>
+            </Pressable>
             <Pressable
               style={styles.menuRow}
               onPress={handleDeleteDish}

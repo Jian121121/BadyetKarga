@@ -8,7 +8,11 @@ import {
   StyleSheet,
   Modal,
   AppState,
+  KeyboardAvoidingView,
+  Platform,
+  Share,
 } from 'react-native';
+import BrandLogo from '../../../shared/components/BrandLogo';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -18,24 +22,45 @@ import { useAuthStore } from '../../../store/authStore';
 import { useGroceryStore } from '../../../store/groceryStore';
 import { useHouseholdStore } from '../../../store/householdStore';
 import type { GroceryItem } from '../../../services/database/groceryRepository';
-import { confirmAction } from '../../../shared/utils/confirm';
+import { confirmAction, notify } from '../../../shared/utils/confirm';
+import { getWeekDateRangeLabel } from '../../../shared/utils/week';
+import {
+  GROCERY_CATEGORIES,
+  categorizeIngredient,
+  categoryIcon,
+} from '../../../shared/constants/groceryCategories';
 import { calculateBudgetBreakdown } from '../../../shared/utils/householdServing';
+import { formatBudgetBufferSummary } from '../../../algorithms/budgetBufferCalculator';
 import { decimalOnly, isStrictDecimal } from '../../../shared/utils/validation';
 import FadeIn from '../../../shared/motion/FadeIn';
 
 type Props = NativeStackScreenProps<GroceriesStackParamList, 'GroceryList'>;
 
-const CATEGORY_ORDER = ['Meat', 'Vegetables', 'Condiments', 'Dairy', 'Grocery'];
-const CATEGORY_ICON: Record<string, keyof typeof MaterialIcons.glyphMap> = {
-  Meat: 'set-meal',
-  Vegetables: 'eco',
-  Condiments: 'local-dining',
-  Dairy: 'egg-alt',
-  Grocery: 'shopping-basket',
-};
-
 function formatPeso(n: number) {
   return `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatQty(quantity: number, unit: string) {
+  return `${Number(quantity.toFixed(2))} ${unit}`.trim();
+}
+
+function buildShareText(
+  groups: Array<{ category: string; items: GroceryItem[] }>,
+  total: number,
+  weekLabel: string
+) {
+  const lines = [`BadyetKarga grocery list (${weekLabel})`, ''];
+  for (const group of groups) {
+    lines.push(group.category.toUpperCase());
+    for (const item of group.items) {
+      lines.push(
+        `${item.isChecked ? '[x]' : '[ ]'} ${item.ingredientName} – ${formatQty(item.quantity, item.unit)} · ${formatPeso(item.estimatedCost)}`
+      );
+    }
+    lines.push('');
+  }
+  lines.push(`Estimated total: ${formatPeso(total)}`);
+  return lines.join('\n');
 }
 
 export default function GroceryListScreen({ navigation }: Props) {
@@ -68,24 +93,43 @@ export default function GroceryListScreen({ navigation }: Props) {
   const { reservedBuffer, usableBudget } = calculateBudgetBreakdown(weeklyBudget, bufferPercentage);
 
   const totalCost = items.reduce((sum, i) => sum + i.estimatedCost, 0);
-  const remaining = usableBudget - weeklyActualSpend - totalCost;
-  const percentUsed =
-    usableBudget > 0 ? Math.min(Math.round((totalCost / usableBudget) * 100), 100) : 0;
+  const committed = weeklyActualSpend + totalCost;
+  const remaining = usableBudget - committed;
+  const overBudget = remaining < 0;
+  const percentUsed = usableBudget > 0 ? Math.round((committed / usableBudget) * 100) : 0;
+  const checkedCount = items.filter((i) => i.isChecked).length;
 
   const grouped = useMemo(() => {
     const map = new Map<string, GroceryItem[]>();
     for (const item of items) {
-      const cat = item.category || 'Grocery';
+      const cat = categorizeIngredient(item.ingredientName);
       const list = map.get(cat) ?? [];
       list.push(item);
       map.set(cat, list);
     }
-    const ordered = CATEGORY_ORDER.filter((c) => map.has(c));
-    for (const key of map.keys()) {
-      if (!ordered.includes(key)) ordered.push(key);
-    }
-    return ordered.map((cat) => ({ category: cat, items: map.get(cat)! }));
+    return GROCERY_CATEGORIES.filter((c) => map.has(c.name)).map((c) => ({
+      category: c.name as string,
+      items: map.get(c.name)!,
+    }));
   }, [items]);
+
+  const handleShare = async () => {
+    if (items.length === 0) {
+      notify('Nothing to share', 'Plan some meals first so the list has items.');
+      return;
+    }
+    const message = buildShareText(grouped, totalCost, getWeekDateRangeLabel());
+    try {
+      await Share.share({ message, title: 'Grocery list' });
+    } catch {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(message);
+        notify('List copied', 'Sharing is not available here, so the list was copied. Paste it into any chat.');
+      } else {
+        notify('Could not share', 'Sharing is not available on this device.');
+      }
+    }
+  };
 
   const handleSavePrice = async (id: number) => {
     if (!isStrictDecimal(editValue) || !currentUser) {
@@ -116,7 +160,16 @@ export default function GroceryListScreen({ navigation }: Props) {
   return (
     <View style={[styles.root, { paddingTop: insets.top + spacing.sm }]}>
       <View style={styles.topBar}>
-        <Text style={styles.brand}>BadyetKarga</Text>
+        <View style={styles.topSpacer} />
+        <BrandLogo size={28} />
+        <Pressable
+          onPress={() => void handleShare()}
+          hitSlop={10}
+          style={styles.shareBtn}
+          accessibilityLabel="Share grocery list"
+        >
+          <MaterialIcons name="ios-share" size={22} color={colors.onSurfaceVariant} />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -146,24 +199,45 @@ export default function GroceryListScreen({ navigation }: Props) {
         </View>
 
         <View style={styles.remainingCard}>
-          <Text style={styles.remainingLabel}>REMAINING AFTER SPEND + CART</Text>
-          <Text style={styles.remainingValue}>{formatPeso(remaining)}</Text>
+          <Text style={styles.remainingLabel}>
+            {overBudget ? 'OVER BUDGET BY' : 'REMAINING AFTER SPENT + LIST'}
+          </Text>
+          <Text style={[styles.remainingValue, overBudget && { color: colors.error }]}>
+            {formatPeso(Math.abs(remaining))}
+          </Text>
           <View style={styles.progressTrack}>
             <View
               style={[
                 styles.progressFill,
                 {
-                  width: `${percentUsed}%`,
-                  backgroundColor: percentUsed > 85 ? colors.error : colors.secondaryContainer,
+                  width: `${Math.min(percentUsed, 100)}%`,
+                  backgroundColor:
+                    percentUsed > 100 ? colors.error : percentUsed > 85 ? colors.secondary : colors.primary,
                 },
               ]}
             />
           </View>
           <Text style={styles.progressCaption}>
-            {percentUsed}% of ₱{usableBudget.toFixed(2)} usable budget used
-            {reservedBuffer > 0 ? ` (₱${reservedBuffer.toFixed(2)} buffer reserved)` : ''}
+            {formatPeso(weeklyActualSpend)} spent + {formatPeso(totalCost)} on list = {percentUsed}% of{' '}
+            {formatPeso(usableBudget)} meal budget
           </Text>
+          {overBudget && (
+            <Pressable onPress={() => navigation.navigate('BudgetOptimization')} hitSlop={6}>
+              <Text style={styles.overHint}>Tap Optimize Budget to find cheaper swaps →</Text>
+            </Pressable>
+          )}
+          {reservedBuffer > 0 && (
+            <Text style={styles.progressCaption}>
+              {formatBudgetBufferSummary(bufferPercentage, weeklyBudget, settings?.visitorBufferServings ?? 0)}
+            </Text>
+          )}
         </View>
+
+        {items.length > 0 && (
+          <Text style={styles.checkedProgress}>
+            {checkedCount} of {items.length} items checked
+          </Text>
+        )}
 
         <Pressable
           onPress={handleRegenerate}
@@ -180,7 +254,7 @@ export default function GroceryListScreen({ navigation }: Props) {
           <View key={group.category} style={styles.section}>
             <View style={styles.sectionHeader}>
               <MaterialIcons
-                name={CATEGORY_ICON[group.category] ?? 'shopping-basket'}
+                name={categoryIcon(group.category)}
                 size={18}
                 color={colors.primary}
               />
@@ -211,7 +285,7 @@ export default function GroceryListScreen({ navigation }: Props) {
                     {item.ingredientName}
                     <Text style={styles.itemQty}>
                       {' '}
-                      ({item.quantity} {item.unit})
+                      ({formatQty(item.quantity, item.unit)})
                     </Text>
                   </Text>
                   <Text style={styles.usedIn} numberOfLines={1}>
@@ -262,15 +336,25 @@ export default function GroceryListScreen({ navigation }: Props) {
       </ScrollView>
 
       <Pressable
-        style={[styles.fab, { bottom: spacing.lg + insets.bottom }]}
+        style={[styles.fab, { bottom: spacing.lg }]}
         onPress={() => setAddVisible(true)}
       >
         <MaterialIcons name="add" size={28} color={colors.onSecondaryContainer} />
       </Pressable>
 
-      <Modal visible={addVisible} transparent animationType="slide">
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalSheet}>
+      <Modal
+        visible={addVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAddVisible(false)}
+        statusBarTranslucent
+      >
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setAddVisible(false)} />
+          <View style={[styles.modalSheet, { paddingBottom: spacing.md + insets.bottom }]}>
             <Text style={styles.modalTitle}>Add ingredient</Text>
             <RNTextInput
               value={newName}
@@ -296,7 +380,7 @@ export default function GroceryListScreen({ navigation }: Props) {
               </Pressable>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -307,11 +391,19 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.marginMobile,
     height: 44,
   },
-  brand: { ...typography.titleLg, color: colors.onSurface, textAlign: 'center' },
+  topSpacer: { width: 30 },
+  shareBtn: { padding: 4 },
+  checkedProgress: {
+    ...typography.labelLg,
+    color: colors.onSurfaceVariant,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  overHint: { ...typography.labelLg, color: colors.error, marginTop: spacing.xs },
   scroll: { paddingHorizontal: spacing.marginMobile },
   totalCard: {
     backgroundColor: colors.primary,

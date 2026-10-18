@@ -1,0 +1,183 @@
+---
+title: BadyetKarga Current Local Database ERD
+---
+erDiagram
+    USERS {
+        INTEGER id PK
+        TEXT fullName
+        TEXT email UK
+        TEXT passwordHash
+        TEXT createdAt
+        TEXT avatarUri
+        TEXT authProvider
+        TEXT googleId
+        INTEGER emailVerified
+    }
+
+    PENDING_REGISTRATIONS {
+        TEXT email PK
+        TEXT fullName
+        TEXT passwordHash
+        TEXT codeHash
+        TEXT expiresAt
+        TEXT createdAt
+    }
+
+    HOUSEHOLD_SETTINGS {
+        INTEGER userId PK
+        TEXT householdName
+        REAL weeklyBudget
+        TEXT householdGoal
+        TEXT currency
+        TEXT cookFrequency
+        TEXT preferredCookTime
+        TEXT mealStyles
+        INTEGER totalMembers
+        INTEGER adults
+        INTEGER children
+        INTEGER seniors
+        INTEGER infantsToddlers
+        INTEGER visitorBufferServings
+        REAL budgetBufferPercentage
+        TEXT religion
+        TEXT selectedGoals
+        INTEGER planDurationDays
+        TEXT customFoodRestrictions
+    }
+
+    FAMILY_MEMBERS {
+        INTEGER id PK
+        INTEGER userId FK
+        TEXT name
+        TEXT allergies
+        TEXT dietaryRestrictions
+        TEXT relationship
+        TEXT age
+        TEXT gender
+        TEXT favoriteFoods
+        TEXT avatarUri
+        TEXT createdAt
+    }
+
+    WEEKLY_AVAILABILITY {
+        INTEGER id PK
+        INTEGER familyMemberId FK
+        TEXT dayOfWeek
+        INTEGER breakfast
+        INTEGER lunch
+        INTEGER snack
+        INTEGER dinner
+    }
+
+    DISHES {
+        INTEGER id PK
+        TEXT name
+        TEXT category
+        REAL estimatedCost
+        INTEGER prepTimeMinutes
+        TEXT description
+        INTEGER servings
+        TEXT tags
+        TEXT mealTypes
+        INTEGER isCustom
+        INTEGER createdBy FK
+        TEXT imageUri
+    }
+
+    DISH_INGREDIENTS {
+        INTEGER id PK
+        INTEGER dishId FK
+        TEXT ingredientName
+        REAL quantity
+        TEXT unit
+        REAL estimatedPrice
+        TEXT priority
+    }
+
+    MEAL_EXCEPTIONS {
+        INTEGER id PK
+        INTEGER userId FK
+        INTEGER dishId FK
+        TEXT dishName
+        INTEGER allowedForPlan
+        TEXT reason
+        TEXT createdAt
+    }
+
+    MEAL_PLAN_ENTRIES {
+        INTEGER id PK
+        INTEGER userId FK
+        INTEGER dishId FK
+        TEXT dayOfWeek
+        TEXT mealType
+        TEXT weekStartDate
+        TEXT createdAt
+    }
+
+    PANTRY_ITEMS {
+        INTEGER id PK
+        INTEGER userId FK
+        TEXT ingredientName
+        TEXT quantity
+        TEXT createdAt
+    }
+
+    GROCERY_ITEMS {
+        INTEGER id PK
+        INTEGER userId FK
+        TEXT ingredientName
+        TEXT category
+        REAL quantity
+        TEXT unit
+        REAL estimatedCost
+        TEXT priority
+        TEXT usedInDishes
+        INTEGER isChecked
+        TEXT weekStartDate
+    }
+
+    SHOPPING_TRIPS {
+        INTEGER id PK
+        INTEGER userId FK
+        TEXT completedAt
+        TEXT weekStart
+        REAL budgetSnapshot
+        REAL estimatedTotal
+        REAL actualTotal
+    }
+
+    PURCHASE_ITEMS {
+        INTEGER id PK
+        INTEGER tripId FK
+        TEXT ingredientName
+        TEXT normalizedName
+        TEXT category
+        REAL quantity
+        TEXT unit
+        REAL estimatedCost
+        REAL actualCost
+    }
+
+    APP_META {
+        INTEGER userId PK
+        TEXT key PK
+        TEXT value
+    }
+
+    USERS ||--o| HOUSEHOLD_SETTINGS : configures
+    USERS ||--o{ FAMILY_MEMBERS : owns
+    FAMILY_MEMBERS ||--o{ WEEKLY_AVAILABILITY : has
+    USERS ||--o{ MEAL_PLAN_ENTRIES : creates
+    DISHES ||--o{ MEAL_PLAN_ENTRIES : selected_in
+    DISHES ||--o{ DISH_INGREDIENTS : contains
+    USERS ||--o{ MEAL_EXCEPTIONS : defines
+    DISHES ||--o{ MEAL_EXCEPTIONS : overrides
+    USERS ||--o{ PANTRY_ITEMS : stores
+    USERS ||--o{ GROCERY_ITEMS : receives
+    USERS ||--o{ SHOPPING_TRIPS : completes
+    SHOPPING_TRIPS ||--o{ PURCHASE_ITEMS : records
+    USERS ||--o{ APP_META : tracks
+    USERS ||--o{ DISHES : creates
+
+    %% Application-level links shown above are not declared SQL FOREIGN KEY constraints.
+    %% Native: Expo SQLite badyetkarga.db. Web: repository localStorage/in-memory mocks.

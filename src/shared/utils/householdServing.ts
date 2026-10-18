@@ -1,5 +1,3 @@
-import { normalizeGoalKey } from '../constants/householdGoals';
-
 export interface HouseholdComposition {
   totalMembers: number;
   adults: number;
@@ -54,41 +52,13 @@ export const VISITOR_BUFFER_OPTIONS = [
   { label: '5+ Extra Servings', value: 5 },
 ] as const;
 
-/**
- * System-chosen emergency reserve. Users do not pick 5/10/15%.
- * Uses weekly budget tightness, household goals (especially saving),
- * and cooking lifestyle / meal style.
- */
-export function recommendBudgetBufferPercentage(input: {
-  weeklyBudget: number;
-  goals?: string[];
-  mealStyles?: string[];
-}): number {
-  const budget = Math.max(0, input.weeklyBudget);
-  if (budget <= 0) return 0;
+/** Meals where unexpected guests usually join; breakfast and snacks stay household-only. */
+export const VISITOR_MEALS = ['lunch', 'dinner'] as const;
 
-  let pct = 8;
-  if (budget < 2000) pct = 5;
-  else if (budget < 3500) pct = 8;
-  else if (budget < 5500) pct = 10;
-  else if (budget < 8000) pct = 12;
-  else pct = 14;
-
-  const goals = (input.goals ?? []).map((goal) => normalizeGoalKey(goal));
-  if (goals.includes('save_money')) pct += 3;
-  if (goals.includes('minimize_grocery_trips')) pct += 2;
-  if (goals.includes('minimize_food_waste')) pct += 1;
-  if (goals.includes('family_friendly')) pct += 1;
-  if (goals.includes('healthy')) pct += 1;
-  if (goals.includes('maximize_food_quantity')) pct -= 2;
-
-  const styles = (input.mealStyles ?? []).map((style) => style.toLowerCase());
-  if (styles.some((style) => style.includes('budget'))) pct += 2;
-  if (styles.some((style) => style.includes('healthy'))) pct += 1;
-  if (styles.some((style) => style.includes('mixed'))) pct += 1;
-  if (styles.some((style) => style.includes('quick'))) pct -= 1;
-
-  return Math.max(5, Math.min(18, Math.round(pct)));
+export function visitorServingsForMeal(mealType: string, visitorBufferServings: number): number {
+  return (VISITOR_MEALS as readonly string[]).includes(mealType.toLowerCase())
+    ? Math.max(0, visitorBufferServings)
+    : 0;
 }
 
 export const PLAN_DURATION_OPTIONS = [

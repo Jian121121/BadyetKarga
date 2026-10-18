@@ -56,6 +56,13 @@ export function dayLabelForWeek(weekStart: string, dayKey: string): string {
 export const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 export type WeekDay = (typeof WEEK_DAYS)[number];
 
+/** Calendar date of `dayKey` ("Mon"…"Sun") in the week starting `weekStart`. */
+export function dateForWeekDay(weekStart: string, dayKey: string): Date {
+  const d = parseLocalISODate(weekStart);
+  d.setDate(d.getDate() + Math.max(0, WEEK_DAYS.indexOf(dayKey as WeekDay)));
+  return d;
+}
+
 export function getPlanDays(durationDays = 7, cookFrequency?: string | null): string[] {
   let days = [...WEEK_DAYS];
   if (cookFrequency === 'Weekdays') days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];

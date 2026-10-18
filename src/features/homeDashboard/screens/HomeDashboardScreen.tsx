@@ -27,7 +27,6 @@ import QuickActions from '../components/QuickActions';
 import FamilyCountCard from '../components/FamilyCountCard';
 import MealCard from '../components/MealCard';
 import { daysLeftInWeek, msUntilNextWeekStart } from '../../../shared/utils/week';
-import { calculateBudgetBreakdown } from '../../../shared/utils/householdServing';
 import { notify } from '../../../shared/utils/confirm';
 import FadeIn from '../../../shared/motion/FadeIn';
 
@@ -175,7 +174,7 @@ export default function HomeDashboardScreen() {
         | undefined;
       if (!tabNav) return;
       if (screen) {
-        tabNav.navigate(tab, { screen } as never);
+        tabNav.navigate(tab, { screen, initial: false } as never);
       } else {
         tabNav.navigate(tab);
       }
@@ -221,10 +220,8 @@ export default function HomeDashboardScreen() {
             spent={spent}
             total={weeklyBudget}
             daysLeft={daysLeftInWeek()}
-            reservedBuffer={
-              calculateBudgetBreakdown(weeklyBudget, settings?.budgetBufferPercentage ?? 0)
-                .reservedBuffer
-            }
+            bufferPercentage={settings?.budgetBufferPercentage ?? 0}
+            visitorBufferServings={settings?.visitorBufferServings ?? 0}
             onPress={() => tabNavigate('ProfileTab', 'EditHousehold')}
           />
         </View>
@@ -262,6 +259,7 @@ export default function HomeDashboardScreen() {
               dishName={meal.dishName}
               imageSource={meal.imageSource}
               empty={meal.empty}
+              onPress={() => tabNavigate('PlannerTab')}
             />
           ))}
         </View>
@@ -269,7 +267,7 @@ export default function HomeDashboardScreen() {
       </ScrollView>
 
       <Pressable
-        style={[styles.fab, { bottom: 16 + insets.bottom }]}
+        style={[styles.fab, { bottom: 16 }]}
         onPress={() => tabNavigate('PlannerTab')}
         accessibilityLabel="Add meal"
       >

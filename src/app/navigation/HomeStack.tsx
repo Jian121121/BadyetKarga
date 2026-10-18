@@ -1,6 +1,5 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { HomeStackParamList } from './types';
-
 import HomeDashboardScreen from '../../features/homeDashboard/screens/HomeDashboardScreen';
 
 const Stack = createNativeStackNavigator<HomeStackParamList>();

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,9 @@ import {
   Switch,
   Image,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
+import BrandLogo from '../../../shared/components/BrandLogo';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,6 +41,8 @@ function initials(name?: string) {
 
 export default function ProfileScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const dialogWidth = Math.min(windowWidth - 48, 400);
   const { currentUser, logout, updateAvatar } = useAuthStore();
   const settings = useHouseholdStore((s) => s.settings);
   const members = useFamilyStore((s) => s.members);
@@ -76,8 +80,13 @@ export default function ProfileScreen({ navigation }: Props) {
     await logout();
   };
 
-  const pickFromLibrary = async () => {
+  /** iOS can't present a picker/dialog while another Modal is still animating out. */
+  const afterPhotoSheetCloses = (action: () => void) => {
     setPhotoSheet(false);
+    setTimeout(action, 350);
+  };
+
+  const pickFromLibrary = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       notify('Permission needed', 'Allow photo library access to set your profile picture.');
@@ -90,7 +99,6 @@ export default function ProfileScreen({ navigation }: Props) {
   };
 
   const takePhoto = async () => {
-    setPhotoSheet(false);
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
       notify('Permission needed', 'Allow camera access to take a profile picture.');
@@ -102,8 +110,7 @@ export default function ProfileScreen({ navigation }: Props) {
     }
   };
 
-  const removePhoto = async () => {
-    setPhotoSheet(false);
+  const removePhoto = () => {
     confirmAction(
       'Remove profile photo?',
       'Your account will use your initials instead.',
@@ -117,7 +124,7 @@ export default function ProfileScreen({ navigation }: Props) {
     <View style={[styles.root, { paddingTop: insets.top + spacing.sm }]}>
       <View style={styles.topBar}>
         <View style={styles.topSide} />
-        <Text style={styles.brand}>BadyetKarga</Text>
+        <BrandLogo size={28} style={styles.brand} />
         <View style={styles.topSide}>
           <Pressable onPress={() => navigation.navigate('EditHousehold')} hitSlop={10}>
             <MaterialIcons name="settings" size={22} color={colors.onSurfaceVariant} />
@@ -286,9 +293,14 @@ export default function ProfileScreen({ navigation }: Props) {
         </FadeIn>
       </ScrollView>
 
-      <Modal visible={logoutVisible} transparent animationType="fade">
+      <Modal
+        visible={logoutVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLogoutVisible(false)}
+      >
         <View style={styles.modalBackdrop}>
-          <View style={styles.logoutModal}>
+          <View style={[styles.logoutModal, { width: dialogWidth }]}>
             <View style={styles.logoutIconCircle}>
               <MaterialIcons name="logout" size={24} color={colors.primary} />
             </View>
@@ -310,18 +322,27 @@ export default function ProfileScreen({ navigation }: Props) {
 
       <Modal visible={photoSheet} transparent animationType="fade" onRequestClose={() => setPhotoSheet(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setPhotoSheet(false)}>
-          <View style={styles.photoSheet}>
+          <View style={[styles.photoSheet, { width: dialogWidth }]} onStartShouldSetResponder={() => true}>
             <Text style={styles.photoTitle}>Profile photo</Text>
-            <Pressable style={styles.photoOption} onPress={() => void takePhoto()}>
+            <Pressable
+              style={styles.photoOption}
+              onPress={() => afterPhotoSheetCloses(() => void takePhoto())}
+            >
               <MaterialIcons name="photo-camera" size={22} color={colors.primary} />
               <Text style={styles.photoOptionText}>Take photo</Text>
             </Pressable>
-            <Pressable style={styles.photoOption} onPress={() => void pickFromLibrary()}>
+            <Pressable
+              style={styles.photoOption}
+              onPress={() => afterPhotoSheetCloses(() => void pickFromLibrary())}
+            >
               <MaterialIcons name="photo-library" size={22} color={colors.primary} />
               <Text style={styles.photoOptionText}>Choose from gallery</Text>
             </Pressable>
             {currentUser?.avatarUri ? (
-              <Pressable style={styles.photoOption} onPress={() => void removePhoto()}>
+              <Pressable
+                style={styles.photoOption}
+                onPress={() => afterPhotoSheetCloses(removePhoto)}
+              >
                 <MaterialIcons name="delete-outline" size={22} color={colors.error} />
                 <Text style={[styles.photoOptionText, { color: colors.error }]}>Remove photo</Text>
               </Pressable>
@@ -380,12 +401,10 @@ const styles = StyleSheet.create({
   },
   brand: {
     flex: 1,
-    textAlign: 'center',
-    ...typography.titleLg,
-    color: colors.onSurface,
+    justifyContent: 'center',
   },
   scroll: { paddingHorizontal: spacing.marginMobile, alignItems: 'center' },
-  fadeBlock: { width: '100%', alignItems: 'center' },
+  fadeBlock: { alignSelf: 'stretch', alignItems: 'center' },
   avatarWrap: { marginTop: spacing.md, marginBottom: spacing.sm },
   avatar: {
     width: 96,
@@ -414,7 +433,7 @@ const styles = StyleSheet.create({
   name: { ...typography.headlineLgMobile, color: colors.onSurface, textAlign: 'center' },
   role: { ...typography.bodyMd, color: colors.onSurfaceVariant, marginTop: 2 },
   email: { ...typography.labelLg, color: colors.onSurfaceVariant, marginBottom: spacing.md },
-  summaryRow: { flexDirection: 'row', gap: spacing.sm, width: '100%', marginBottom: spacing.md },
+  summaryRow: { flexDirection: 'row', gap: spacing.sm, alignSelf: 'stretch', marginBottom: spacing.md },
   summaryCard: {
     flex: 1,
     backgroundColor: colors.surfaceContainerLowest,
@@ -504,6 +523,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center',
+    alignItems: 'center',
     padding: spacing.lg,
   },
   logoutModal: {

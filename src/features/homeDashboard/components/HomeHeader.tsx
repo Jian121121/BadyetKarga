@@ -1,26 +1,46 @@
-import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
+import BrandLogo from '../../../shared/components/BrandLogo';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, typography, spacing } from '../../../shared/theme';
 
-export default function HomeHeader() {
+interface HomeHeaderProps {
+  onProfilePress?: () => void;
+  onNotificationsPress?: () => void;
+  unreadCount?: number;
+  avatarUri?: string | null;
+}
+
+export default function HomeHeader({
+  onProfilePress,
+  onNotificationsPress,
+  unreadCount = 0,
+  avatarUri,
+}: HomeHeaderProps) {
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={styles.header}>
-      <View style={styles.left}>
-        <Pressable style={styles.iconButton}>
-          <MaterialIcons name="menu" size={24} color={colors.primary} />
+    <View style={[styles.header, { paddingTop: insets.top }]}>
+      <View style={styles.side} />
+
+      <BrandLogo size={28} style={styles.brand} />
+
+      <View style={[styles.side, styles.sideRight]}>
+        <Pressable style={styles.iconButton} hitSlop={10} onPress={onNotificationsPress}>
+          <MaterialIcons name="notifications-none" size={24} color={colors.onSurfaceVariant} />
+          {unreadCount > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+            </View>
+          )}
         </Pressable>
-        <Text style={styles.title}>BadyetKarga</Text>
-      </View>
-      <View style={styles.right}>
-        <Pressable style={styles.iconButton}>
-          <MaterialIcons name="notifications" size={24} color={colors.onSurfaceVariant} />
+        <Pressable onPress={onProfilePress} style={styles.avatar} hitSlop={6}>
+          {avatarUri ? (
+            <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+          ) : (
+            <MaterialIcons name="person" size={22} color={colors.onPrimary} />
+          )}
         </Pressable>
-        <Image
-          style={styles.avatar}
-          source={{
-            uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDRbv6mpeONiEzd3rghzNZs7voAErbBpkquiHbpfOlIiS729-P4C_1Ol6vg_SNfRkejPQZr8xDXFBsIo8qvgXiY5qo7rp-dBCt002Cxp_wqQzyU8DoE9P8U1-0KO8cJihAeb9-0VOzXhZ6qHC5VEVycrv7nS93dQHBsXJWlm135MSsp5-x4TuxBtdjV6Pwa0o5ss4DlC-ZVP4ewR-JrEXpgMJcKgt0vIx_KvCBuRXtZssrSfSMVFA4ldA',
-          }}
-        />
       </View>
     </View>
   );
@@ -29,35 +49,50 @@ export default function HomeHeader() {
 const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    height: 64,
+    minHeight: 56,
     paddingHorizontal: spacing.marginMobile,
-    backgroundColor: colors.surface,
+    paddingBottom: spacing.sm,
+    backgroundColor: colors.background,
   },
-  left: {
+  side: {
+    width: 88,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
   },
-  right: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
+  sideRight: {
+    justifyContent: 'flex-end',
+    gap: spacing.xs,
+  },
+  brand: {
+    flex: 1,
+    justifyContent: 'center',
   },
   iconButton: {
     padding: spacing.sm,
     borderRadius: 999,
   },
-  title: {
-    ...typography.headlineLgMobile,
-    color: colors.primary,
-    fontWeight: 'bold',
+  badge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    backgroundColor: colors.error,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
+  badgeText: { color: colors.onError, fontSize: 9, fontWeight: '700' },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primaryContainer,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
   },
+  avatarImage: { width: 36, height: 36 },
 });

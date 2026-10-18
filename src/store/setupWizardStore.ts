@@ -1,11 +1,18 @@
 import { create } from 'zustand';
 import { addFamilyMember } from '../services/database/familyRepository';
 import { setAvailability } from '../services/database/availabilityRepository';
-import { addPantryItem } from '../services/database/pantryRepository';
+import { upsertPantryItem } from '../services/database/pantryRepository';
 import { useHouseholdStore } from './householdStore';
 import { useAuthStore } from './authStore';
 import { useFamilyStore } from './familyStore';
-import { compositionFromMembers, recommendBudgetBufferPercentage } from '../shared/utils/householdServing';
+import { compositionFromMembers } from '../shared/utils/householdServing';
+import { calculateBudgetBuffer, type BudgetBufferResult } from '../algorithms/budgetBufferCalculator';
+import {
+  normalizeFoodTerms,
+  serializeCustomFoodRestrictions,
+  usesCustomFoodRestrictions,
+  type FoodRestrictionKey,
+} from '../shared/constants/religion';
 
 // ── Shared wizard constants ─────────────────────────────────
 
@@ -61,6 +68,25 @@ export function createDraftMember(partial: Partial<DraftMember> = {}): DraftMemb
   };
 }
 
+/** Preview of the buffer the household store will save on commit. */
+export function draftBudgetBuffer(draft: {
+  weeklyBudget: string;
+  selectedGoals: string[];
+  members: DraftMember[];
+  visitorBufferServings: number;
+}): BudgetBufferResult {
+  const composition = compositionFromMembers(draft.members);
+  return calculateBudgetBuffer({
+    weeklyBudget: parseFloat(draft.weeklyBudget) || 0,
+    selectedGoals: draft.selectedGoals,
+    adults: composition.adults,
+    children: composition.children,
+    seniors: composition.seniors,
+    infantsToddlers: composition.infantsToddlers,
+    visitorBufferServings: draft.visitorBufferServings,
+  });
+}
+
 // ── Store ───────────────────────────────────────────────────
 
 interface SetupWizardState {
@@ -73,8 +99,9 @@ interface SetupWizardState {
   seniors: number;
   infantsToddlers: number;
   visitorBufferServings: number;
-  budgetBufferPercentage: number;
   religion: string;
+  customFoodRestrictions: FoodRestrictionKey[];
+  customFoodTerms: string[];
   planDurationDays: number;
   currency: string;
 
@@ -105,8 +132,9 @@ interface SetupWizardState {
   setSeniors: (count: number) => void;
   setInfantsToddlers: (count: number) => void;
   setVisitorBufferServings: (servings: number) => void;
-  setBudgetBufferPercentage: (pct: number) => void;
   setReligion: (religion: string) => void;
+  toggleCustomFoodRestriction: (key: FoodRestrictionKey) => void;
+  setCustomFoodTerms: (terms: string[]) => void;
   setPlanDurationDays: (days: number) => void;
   setGoal: (goal: string) => void;
   toggleGoal: (goal: string) => void;
@@ -143,8 +171,9 @@ const initialDraft = {
   seniors: 0,
   infantsToddlers: 0,
   visitorBufferServings: 0,
-  budgetBufferPercentage: 0,
   religion: 'No Religious Restriction',
+  customFoodRestrictions: [] as FoodRestrictionKey[],
+  customFoodTerms: [] as string[],
   planDurationDays: 7,
   currency: 'PHP',
   goal: 'Save Money',
@@ -175,9 +204,16 @@ export const useSetupWizardStore = create<SetupWizardState>((set, get) => ({
   setInfantsToddlers: (infantsToddlers) => set({ infantsToddlers: Math.max(0, infantsToddlers) }),
   setVisitorBufferServings: (visitorBufferServings) =>
     set({ visitorBufferServings: Math.max(0, visitorBufferServings) }),
-  setBudgetBufferPercentage: (budgetBufferPercentage) =>
-    set({ budgetBufferPercentage: Math.max(0, budgetBufferPercentage) }),
   setReligion: (religion) => set({ religion }),
+  toggleCustomFoodRestriction: (key) => {
+    const current = get().customFoodRestrictions;
+    set({
+      customFoodRestrictions: current.includes(key)
+        ? current.filter((k) => k !== key)
+        : [...current, key],
+    });
+  },
+  setCustomFoodTerms: (customFoodTerms) => set({ customFoodTerms: normalizeFoodTerms(customFoodTerms) }),
   setPlanDurationDays: (planDurationDays) => set({ planDurationDays }),
   setGoal: (goal) => set({ goal, selectedGoals: [goal] }),
   toggleGoal: (goal) => {
@@ -306,7 +342,7 @@ export const useSetupWizardStore = create<SetupWizardState>((set, get) => ({
 
       // 3. Pantry items — everything selected is simply "on hand".
       for (const ingredient of state.pantryItems) {
-        await addPantryItem(userId, ingredient, 'on hand');
+        await upsertPantryItem(userId, ingredient, 'on hand');
       }
 
       const composition = compositionFromMembers(members);
@@ -329,12 +365,10 @@ export const useSetupWizardStore = create<SetupWizardState>((set, get) => ({
         seniors: composition.seniors,
         infantsToddlers: composition.infantsToddlers,
         visitorBufferServings: state.visitorBufferServings,
-        budgetBufferPercentage: recommendBudgetBufferPercentage({
-          weeklyBudget: parseFloat(state.weeklyBudget) || 0,
-          goals: state.selectedGoals,
-          mealStyles: state.mealStyles,
-        }),
         religion: state.religion,
+        customFoodRestrictions: usesCustomFoodRestrictions(state.religion)
+          ? serializeCustomFoodRestrictions(state.customFoodRestrictions, state.customFoodTerms)
+          : serializeCustomFoodRestrictions([], []),
         selectedGoals: JSON.stringify(state.selectedGoals),
         planDurationDays: state.planDurationDays,
       });

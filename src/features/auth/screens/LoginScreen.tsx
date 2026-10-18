@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import {
   View,
   Text,
-  Image,
   Pressable,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,12 +16,15 @@ import type { AuthStackParamList } from '../../../app/navigation/types';
 import { useAuthStore } from '../../../store/authStore';
 import { colors, typography, spacing, radii } from '../../../shared/theme';
 import Card from '../../../shared/components/Card';
+import BrandLogo from '../../../shared/components/BrandLogo';
 import FadeIn from '../../../shared/motion/FadeIn';
 import TextInput from '../../../shared/components/TextInput';
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export default function LoginScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const formWidth = Math.min(windowWidth - 32, 400);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -59,16 +62,9 @@ export default function LoginScreen({ navigation }: Props) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <FadeIn style={styles.form}>
+          <FadeIn style={[styles.form, { width: formWidth }]}>
             <View style={styles.hero}>
-              <View style={styles.logoWrap}>
-                <Image
-                  source={require('../../../../assets/logo.png')}
-                  style={styles.logo}
-                  resizeMode="contain"
-                  accessibilityLabel="BadyetKarga"
-                />
-              </View>
+              <BrandLogo variant="full" size={150} style={styles.logoWrap} />
               <Text style={styles.title}>Welcome Back</Text>
               <Text style={styles.subtitle}>Sign in to manage your household budget</Text>
             </View>
@@ -174,42 +170,31 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
   },
   form: {
-    width: '100%',
-    maxWidth: 400,
     alignSelf: 'center',
+    maxWidth: 400,
   },
   hero: {
-    width: '100%',
+    alignSelf: 'stretch',
     alignItems: 'center',
     marginBottom: spacing.lg,
   },
   logoWrap: {
-    width: 88,
-    height: 88,
-    borderRadius: radii.xl,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginBottom: spacing.md,
-    overflow: 'hidden',
   },
-  logo: { width: 72, height: 72 },
   title: {
     ...typography.headlineLgMobile,
-    width: '100%',
+    alignSelf: 'stretch',
     color: colors.onSurface,
     textAlign: 'center',
   },
   subtitle: {
     ...typography.bodyMd,
-    width: '100%',
+    alignSelf: 'stretch',
     color: colors.onSurfaceVariant,
     textAlign: 'center',
     marginTop: spacing.xs,
   },
-  card: { width: '100%', gap: spacing.xs },
+  card: { alignSelf: 'stretch', gap: spacing.xs },
   eyeButton: {
     position: 'absolute',
     right: spacing.md,

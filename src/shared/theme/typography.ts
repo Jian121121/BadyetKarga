@@ -25,13 +25,13 @@ export const typography = {
     fontFamily: fontFamily.displayLg,
     fontSize: 40,
     lineHeight: 48,
-    letterSpacing: -0.4, // approx. -0.02em at this size
+    letterSpacing: 0,
   },
   headlineLg: {
     fontFamily: fontFamily.headlineLg,
     fontSize: 32,
     lineHeight: 40,
-    letterSpacing: -0.3,
+    letterSpacing: 0,
   },
   headlineLgMobile: {
     fontFamily: fontFamily.headlineLgMobile,

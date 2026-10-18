@@ -48,7 +48,7 @@ export type PlannerStackParamList = {
   MealPlanner: undefined;
   DishLibrary: { lockSlot?: boolean };
   DishDetails: { dishId: string; fromPlanner?: boolean; pickSlot?: boolean };
-  AddDish: undefined; // user-created dish with own ingredients & prices
+  AddDish: { dishId?: number } | undefined; // create, or edit when dishId is a custom dish
 };
 
 export type GroceriesStackParamList = {

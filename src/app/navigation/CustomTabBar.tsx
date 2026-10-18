@@ -1,10 +1,11 @@
-import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Keyboard } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import type { ComponentProps } from 'react';
+import { useEffect, useState, type ComponentProps } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { colors, typography, spacing, radii } from '../../shared/theme';
+import GlassView from '../../shared/components/GlassView';
 import FadeIn from '../../shared/motion/FadeIn';
+import { colors, typography, spacing, radii } from '../../shared/theme';
 
 type IconName = ComponentProps<typeof MaterialIcons>['name'];
 
@@ -19,11 +20,24 @@ const TAB_META: Record<string, { label: string; icon: IconName; iconActive: Icon
 export default function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const bottomPad = Math.max(insets.bottom, Platform.OS === 'web' ? 10 : 8);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  if (keyboardVisible) return null;
 
   return (
     <View style={[styles.wrap, { paddingBottom: bottomPad }]}>
       <FadeIn>
-      <View style={styles.bar}>
+      <GlassView style={styles.bar}>
         {state.routes.map((route, index) => {
           const focused = state.index === index;
           const { options } = descriptors[route.key];
@@ -57,7 +71,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                 <MaterialIcons
                   name={focused ? meta.iconActive : meta.icon}
                   size={22}
-                  color={focused ? colors.onPrimary : colors.onSurfaceVariant}
+                  color={focused ? colors.primary : colors.onSurfaceVariant}
                 />
               </View>
               <Text style={[styles.label, focused && styles.labelActive]} numberOfLines={1}>
@@ -66,7 +80,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
             </Pressable>
           );
         })}
-      </View>
+      </GlassView>
       </FadeIn>
     </View>
   );
@@ -74,7 +88,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
 
 const styles = StyleSheet.create({
   wrap: {
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
   },
@@ -82,10 +96,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: radii.lg,
-    borderTopWidth: 1,
-    borderColor: colors.outlineVariant,
+    borderRadius: radii.xl,
     paddingHorizontal: 2,
     paddingVertical: 6,
   },
@@ -104,7 +115,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconWrapActive: {
-    backgroundColor: colors.primaryContainer,
+    backgroundColor: 'rgba(120,190,32,0.18)',
   },
   iconWrapPop: {
     transform: [{ scale: 1.06 }],

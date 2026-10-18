@@ -8,6 +8,7 @@ import {
   TextInput as RNTextInput,
   StyleSheet,
   Modal,
+  useWindowDimensions,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,15 +30,32 @@ import { confirmAction, notify } from '../../../shared/utils/confirm';
 import BackHeader from '../../../shared/components/BackHeader';
 import { useHouseholdStore } from '../../../store/householdStore';
 import { addMealException } from '../../../services/database/mealExceptionRepository';
-import { isDishRestrictedByReligion } from '../../../shared/constants/religion';
+import {
+  isDishRestrictedByReligion,
+  parseCustomFoodRestrictions,
+  parseCustomFoodTerms,
+  restrictionSourceLabel,
+} from '../../../shared/constants/religion';
 
 type Props = NativeStackScreenProps<PlannerStackParamList, 'DishLibrary'>;
 
 export default function DishLibraryScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const menuWidth = Math.min(windowWidth - 48, 320);
   const lockSlot = route.params?.lockSlot === true;
   const currentUser = useAuthStore((s) => s.currentUser);
-    const religion = useHouseholdStore((s) => s.settings?.religion ?? 'No Religious Restriction');
+  const religion = useHouseholdStore((s) => s.settings?.religion ?? 'No Religious Restriction');
+  const customFoodRestrictionsRaw = useHouseholdStore((s) => s.settings?.customFoodRestrictions);
+  const customFoodRestrictions = useMemo(
+    () => parseCustomFoodRestrictions(customFoodRestrictionsRaw),
+    [customFoodRestrictionsRaw]
+  );
+  const customFoodTerms = useMemo(
+    () => parseCustomFoodTerms(customFoodRestrictionsRaw),
+    [customFoodRestrictionsRaw]
+  );
+  const restrictionLabel = restrictionSourceLabel(religion);
   const {
     dishes,
     entries,
@@ -108,10 +126,21 @@ export default function DishLibraryScreen({ navigation, route }: Props) {
     const ids = new Set<number>();
     for (const dish of safeDishes) {
       const ingredients = ingredientsByDishId.get(dish.id) ?? [];
-      if (isDishRestrictedByReligion(dish.name, dish.category, ingredients, religion)) ids.add(dish.id);
+      if (
+        isDishRestrictedByReligion(
+          dish.name,
+          dish.category,
+          ingredients,
+          religion,
+          customFoodRestrictions,
+          customFoodTerms
+        )
+      ) {
+        ids.add(dish.id);
+      }
     }
     return ids;
-  }, [safeDishes, ingredientsByDishId, religion]);
+  }, [safeDishes, ingredientsByDishId, religion, customFoodRestrictions, customFoodTerms]);
 
   const visibleDishes = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -129,7 +158,7 @@ export default function DishLibraryScreen({ navigation, route }: Props) {
       if (!dish) return;
       confirmAction(
         'Food consideration warning',
-        `${dish.name} is not recommended for ${religion}. Add it as an exception and use it anyway? Auto-Plan will still respect this exception.`,
+        `${dish.name} is not recommended for ${restrictionLabel}. Add it as an exception and use it anyway? Auto-Plan will still respect this exception.`,
         'Allow and add',
         () => {
           void addMealException(currentUser.id, dish.id, dish.name, true, 'User chose this dish manually')
@@ -168,7 +197,8 @@ export default function DishLibraryScreen({ navigation, route }: Props) {
   const handleDeleteMine = (dish: Dish) => {
     if (!currentUser) return;
     setMenuDish(null);
-    confirmAction(
+    // Let the menu Modal finish closing; iOS can't present the dialog Modal on top of it.
+    setTimeout(() => confirmAction(
       'Delete this dish?',
       `Remove “${dish.name}” from your library? Planned meals using it will be cleared.`,
       'Delete',
@@ -185,7 +215,7 @@ export default function DishLibraryScreen({ navigation, route }: Props) {
           notify('Dish deleted', `${dish.name} was removed.`);
         })(),
       { destructive: true }
-    );
+    ), 350);
   };
 
   return (
@@ -253,6 +283,7 @@ export default function DishLibraryScreen({ navigation, route }: Props) {
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
           <Pressable
             style={styles.card}
@@ -302,7 +333,7 @@ export default function DishLibraryScreen({ navigation, route }: Props) {
                                 {restrictedDishIds.has(item.id) && (
                                   <View style={styles.religionWarningChip}>
                                     <MaterialIcons name="info-outline" size={12} color={colors.error} />
-                                    <Text style={styles.religionWarningText}>Not recommended for {religion}</Text>
+                                    <Text style={styles.religionWarningText}>Not recommended for {restrictionLabel}</Text>
                                   </View>
                                 )}
                 <View style={styles.tagChipPrimary}>
@@ -383,7 +414,7 @@ export default function DishLibraryScreen({ navigation, route }: Props) {
         onRequestClose={() => setMenuDish(null)}
       >
         <Pressable style={styles.menuBackdrop} onPress={() => setMenuDish(null)}>
-          <View style={styles.menuCard}>
+          <View style={[styles.menuCard, { width: menuWidth }]} onStartShouldSetResponder={() => true}>
             <Text style={styles.menuTitle} numberOfLines={1}>
               {menuDish?.name ?? 'My dish'}
             </Text>
@@ -516,7 +547,7 @@ const styles = StyleSheet.create({
   },
   timeBadge: {
     position: 'absolute',
-    top: spacing.sm,
+    bottom: spacing.sm,
     right: spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
@@ -560,17 +591,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
+    alignItems: 'center',
     padding: spacing.marginMobile,
   },
   menuCard: {
+    alignSelf: 'center',
+    maxWidth: 320,
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: radii.lg,
     paddingVertical: spacing.sm,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
-    maxWidth: 320,
-    alignSelf: 'center',
-    width: '100%',
   },
   menuTitle: {
     ...typography.titleMd,

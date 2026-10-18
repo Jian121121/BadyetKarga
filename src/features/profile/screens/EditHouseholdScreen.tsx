@@ -9,9 +9,9 @@ import {
   TextInput as RNTextInput,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { ProfileStackParamList } from '../../../app/navigation/types';
 import { colors, typography, spacing, radii } from '../../../shared/theme';
@@ -23,15 +23,23 @@ import { HOUSEHOLD_GOALS } from '../../../shared/constants/householdGoals';
 import {
   RELIGION_OPTIONS,
   RELIGION_DESCRIPTIONS,
-  isDishRestrictedByReligion,
+  parseCustomFoodRestrictions,
+  parseCustomFoodTerms,
+  serializeCustomFoodRestrictions,
+  restrictionSourceLabel,
+  usesCustomFoodRestrictions,
+  type FoodRestrictionKey,
 } from '../../../shared/constants/religion';
+import FoodRestrictionPicker from '../../../shared/components/FoodRestrictionPicker';
 import {
   VISITOR_BUFFER_OPTIONS,
-  calculateBudgetBreakdown,
   compositionFromMembers,
-  recommendBudgetBufferPercentage,
+  type HouseholdComposition,
 } from '../../../shared/utils/householdServing';
-import { parseMealStyles } from '../../../services/database/householdRepository';
+import {
+  calculateBudgetBuffer,
+  formatBudgetBufferSummary,
+} from '../../../algorithms/budgetBufferCalculator';
 import {
   getMealExceptions,
   addMealException,
@@ -58,7 +66,8 @@ function parseBudget(raw: string): number | null {
 }
 
 export default function EditHouseholdScreen({ navigation }: Props) {
-  const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const dialogWidth = Math.min(windowWidth - 48, 420);
   const currentUser = useAuthStore((s) => s.currentUser);
   const settings = useHouseholdStore((s) => s.settings);
   const saveSettings = useHouseholdStore((s) => s.saveSettings);
@@ -73,6 +82,16 @@ export default function EditHouseholdScreen({ navigation }: Props) {
     settings?.visitorBufferServings ?? 0
   );
   const [religion, setReligion] = useState(settings?.religion ?? 'No Religious Restriction');
+  const [customFoodRestrictions, setCustomFoodRestrictions] = useState<FoodRestrictionKey[]>(
+    parseCustomFoodRestrictions(settings?.customFoodRestrictions)
+  );
+  const [customFoodTerms, setCustomFoodTerms] = useState<string[]>(
+    parseCustomFoodTerms(settings?.customFoodRestrictions)
+  );
+  const toggleCustomFoodRestriction = (key: FoodRestrictionKey) =>
+    setCustomFoodRestrictions((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
 
   // Goals (multi-select)
   const initialGoals = (() => {
@@ -103,10 +122,15 @@ export default function EditHouseholdScreen({ navigation }: Props) {
   const [saving, setSaving] = useState(false);
   const [budgetError, setBudgetError] = useState<string | null>(null);
 
+  const [composition, setComposition] = useState<HouseholdComposition | null>(null);
+
   useEffect(() => {
     if (!currentUser) return;
     void getMealExceptions(currentUser.id).then(setExceptions);
-    void getAllDishes().then(setDishes);
+    void getAllDishes(currentUser.id).then(setDishes);
+    void getFamilyMembers(currentUser.id).then((members) =>
+      setComposition(compositionFromMembers(members))
+    );
   }, [currentUser?.id]);
 
   useEffect(() => {
@@ -115,6 +139,8 @@ export default function EditHouseholdScreen({ navigation }: Props) {
     setWeeklyBudget(settings.weeklyBudget > 0 ? String(settings.weeklyBudget) : '');
     setVisitorBufferServings(settings.visitorBufferServings ?? 0);
     setReligion(settings.religion ?? 'No Religious Restriction');
+    setCustomFoodRestrictions(parseCustomFoodRestrictions(settings.customFoodRestrictions));
+    setCustomFoodTerms(parseCustomFoodTerms(settings.customFoodRestrictions));
     if (settings.selectedGoals) {
       try {
         const parsed = JSON.parse(settings.selectedGoals);
@@ -126,21 +152,21 @@ export default function EditHouseholdScreen({ navigation }: Props) {
   }, [settings?.userId]);
 
   const parsedBudget = parseBudget(weeklyBudget) ?? 0;
-  const mealStyles = parseMealStyles(settings);
-  const budgetBufferPercentage = recommendBudgetBufferPercentage({
+  const { bufferPercentage, bufferAmount } = calculateBudgetBuffer({
     weeklyBudget: parsedBudget,
-    goals: selectedGoals,
-    mealStyles,
+    selectedGoals,
+    adults: composition?.adults ?? settings?.adults ?? 1,
+    children: composition?.children ?? settings?.children ?? 0,
+    seniors: composition?.seniors ?? settings?.seniors ?? 0,
+    infantsToddlers: composition?.infantsToddlers ?? settings?.infantsToddlers ?? 0,
+    visitorBufferServings,
   });
+  const usableBudget = Math.max(0, parsedBudget - bufferAmount);
   const selectedPreset =
     parsedBudget > 0 && BUDGET_PRESETS.includes(Math.round(parsedBudget))
       ? Math.round(parsedBudget)
       : null;
 
-  const { reservedBuffer, usableBudget } = calculateBudgetBreakdown(
-    parsedBudget,
-    budgetBufferPercentage
-  );
   const toggleGoal = (goalLabel: string) => {
     setSelectedGoals((prev) => {
       const exists = prev.includes(goalLabel);
@@ -162,8 +188,7 @@ export default function EditHouseholdScreen({ navigation }: Props) {
     setBudgetError(null);
     setSaving(true);
     try {
-      const familyMembers = await getFamilyMembers(currentUser.id);
-      const composition = compositionFromMembers(familyMembers);
+      const latest = compositionFromMembers(await getFamilyMembers(currentUser.id));
       await saveSettings({
         userId: currentUser.id,
         householdName: householdName.trim() || settings?.householdName || 'My Household',
@@ -173,14 +198,16 @@ export default function EditHouseholdScreen({ navigation }: Props) {
         cookFrequency: settings?.cookFrequency ?? '',
         preferredCookTime: settings?.preferredCookTime ?? '',
         mealStyles: settings?.mealStyles ?? '[]',
-        totalMembers: Math.max(1, composition.totalMembers),
-        adults: composition.adults,
-        children: composition.children,
-        seniors: composition.seniors,
-        infantsToddlers: composition.infantsToddlers,
+        totalMembers: Math.max(1, latest.totalMembers),
+        adults: latest.adults,
+        children: latest.children,
+        seniors: latest.seniors,
+        infantsToddlers: latest.infantsToddlers,
         visitorBufferServings,
-        budgetBufferPercentage,
         religion,
+        customFoodRestrictions: usesCustomFoodRestrictions(religion)
+          ? serializeCustomFoodRestrictions(customFoodRestrictions, customFoodTerms)
+          : serializeCustomFoodRestrictions([], []),
         selectedGoals: JSON.stringify(selectedGoals),
         planDurationDays: settings?.planDurationDays ?? 7,
       });
@@ -223,7 +250,7 @@ export default function EditHouseholdScreen({ navigation }: Props) {
     if (!currentUser) return;
     confirmAction(
       'Remove exception?',
-      `Remove ${dishName} from your exceptions list? Standard ${religion} dietary rules will apply.`,
+      `Remove ${dishName} from your exceptions list? Rules from ${restrictionSourceLabel(religion)} will apply again.`,
       'Remove',
       async () => {
         await removeMealException(currentUser.id, dishId);
@@ -241,8 +268,12 @@ export default function EditHouseholdScreen({ navigation }: Props) {
     `${visitorBufferServings} Extra Servings`;
 
   return (
-    <View style={[styles.root, { paddingBottom: insets.bottom }]}> 
+    <View style={styles.root}>
       <BackHeader title="Edit Household" onBack={navigation.goBack} />
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: 60 }]}
         keyboardShouldPersistTaps="handled"
@@ -274,7 +305,8 @@ export default function EditHouseholdScreen({ navigation }: Props) {
         {/* SECTION 3: Visitor Buffer */}
         <Text style={styles.sectionHeader}>Unexpected Visitor Buffer</Text>
         <Text style={styles.fieldHint}>
-          Reserves extra food portions for relatives or guests who may eat at your household.
+          Cooks extra servings at lunch and dinner for relatives or guests who drop by, and
+          sets aside a little more of your budget for them.
         </Text>
         <Pressable style={styles.dropdown} onPress={() => setVisitorModalOpen(true)}>
           <View style={styles.dropdownContent}>
@@ -305,16 +337,11 @@ export default function EditHouseholdScreen({ navigation }: Props) {
         {parsedBudget > 0 && (
           <View style={styles.breakdownCard}>
             <Text style={styles.breakdownTitle}>Automatic Budget Buffer</Text>
-            <Text style={styles.breakdownHint}>
-              Reserved automatically from your weekly budget, selected goals, and meal style.
-            </Text>
-            <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>Total Budget</Text>
-              <Text style={styles.breakdownValue}>₱{parsedBudget.toFixed(2)}</Text>
-            </View>
-            <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>Reserved Buffer ({budgetBufferPercentage}%)</Text>
-              <Text style={styles.breakdownReserved}>- ₱{reservedBuffer.toFixed(2)}</Text>
+            <View style={styles.bufferSummaryRow}>
+              <MaterialIcons name="savings" size={20} color={colors.primary} />
+              <Text style={styles.bufferSummaryText}>
+                {formatBudgetBufferSummary(bufferPercentage, parsedBudget, visitorBufferServings)}
+              </Text>
             </View>
             <View style={[styles.breakdownRow, styles.breakdownTotal]}>
               <Text style={styles.breakdownUsableLabel}>Usable Meal Planning Budget</Text>
@@ -376,6 +403,14 @@ export default function EditHouseholdScreen({ navigation }: Props) {
         <Text style={styles.religionDesc}>
           {RELIGION_DESCRIPTIONS[religion] ?? 'Configured household dietary preference.'}
         </Text>
+        {usesCustomFoodRestrictions(religion) && (
+          <FoodRestrictionPicker
+            selected={customFoodRestrictions}
+            onToggle={toggleCustomFoodRestriction}
+            terms={customFoodTerms}
+            onChangeTerms={setCustomFoodTerms}
+          />
+        )}
 
         {/* SECTION 7: Specific Meal Exceptions */}
         <View style={styles.exceptionHeaderRow}>
@@ -419,12 +454,16 @@ export default function EditHouseholdScreen({ navigation }: Props) {
 
         <Button label="Save Changes" onPress={handleSave} loading={saving} style={styles.saveBtn} />
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Visitor Modal */}
       <Modal visible={visitorModalOpen} transparent animationType="fade" onRequestClose={() => setVisitorModalOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setVisitorModalOpen(false)}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { width: dialogWidth }]} onStartShouldSetResponder={() => true}>
             <Text style={styles.modalTitle}>Visitor / Extra Serving Buffer</Text>
+            <Text style={styles.modalSubtitle}>
+              How many extra servings should meals aim for in case guests arrive?
+            </Text>
             {VISITOR_BUFFER_OPTIONS.map((opt) => (
               <Pressable
                 key={opt.label}
@@ -446,7 +485,7 @@ export default function EditHouseholdScreen({ navigation }: Props) {
 
       <Modal visible={budgetModalOpen} transparent animationType="slide" onRequestClose={() => setBudgetModalOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setBudgetModalOpen(false)}>
-          <View style={styles.sheetCard} onStartShouldSetResponder={() => true}>
+          <View style={[styles.sheetCard, { width: dialogWidth }]} onStartShouldSetResponder={() => true}>
             <View style={styles.sheetHandle} />
             <Text style={styles.modalTitle}>Suggested weekly budget</Text>
             <Text style={styles.modalSubtitle}>Choose a starting point or enter a custom amount above.</Text>
@@ -474,28 +513,32 @@ export default function EditHouseholdScreen({ navigation }: Props) {
       </Modal>
 
       {/* Religion Modal */}
-      <Modal visible={religionModalOpen} transparent animationType="fade" onRequestClose={() => setReligionModalOpen(false)}>
+      <Modal visible={religionModalOpen} transparent animationType="slide" onRequestClose={() => setReligionModalOpen(false)}>
         <View style={styles.modalBackdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setReligionModalOpen(false)} />
-          <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-            <Text style={styles.modalTitle}>Choose Religion / Dietary Preference</Text>
-            <ScrollView showsVerticalScrollIndicator={false}>
+          <View style={[styles.sheetCard, { width: dialogWidth }]} onStartShouldSetResponder={() => true}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.modalTitle}>Dietary preference</Text>
+            <Text style={styles.modalSubtitle}>Select the household's primary consideration.</Text>
+            <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
               {RELIGION_OPTIONS.map((r) => {
                 const selected = religion === r;
                 return (
                   <Pressable
                     key={r}
-                    style={[styles.modalOption, selected && styles.modalOptionSelected]}
+                    style={[styles.pickOption, selected && styles.pickOptionSelected]}
                     onPress={() => {
                       setReligion(r);
                       setReligionModalOpen(false);
                     }}
                   >
+                    <View style={[styles.radio, selected && styles.radioSelected]}>
+                      {selected && <View style={styles.radioDot} />}
+                    </View>
                     <View style={styles.optionCopy}>
-                      <Text style={selected ? styles.optionTextSelected : styles.optionText}>{r}</Text>
+                      <Text style={[styles.optionText, selected && styles.optionTextSelected]}>{r}</Text>
                       <Text style={styles.optionSubText}>{RELIGION_DESCRIPTIONS[r]}</Text>
                     </View>
-                    {selected && <MaterialIcons name="check" size={20} color={colors.primary} />}
                   </Pressable>
                 );
               })}
@@ -505,32 +548,41 @@ export default function EditHouseholdScreen({ navigation }: Props) {
       </Modal>
 
       {/* Add Exception Modal */}
-      <Modal visible={addExceptionOpen} transparent animationType="fade" onRequestClose={() => setAddExceptionOpen(false)}>
+      <Modal visible={addExceptionOpen} transparent animationType="slide" onRequestClose={() => setAddExceptionOpen(false)}>
         <View style={styles.modalBackdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setAddExceptionOpen(false)} />
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.exceptionKeyboardView}
           >
-          <View style={styles.exceptionModalCard} onStartShouldSetResponder={() => true}>
-            <Text style={styles.modalTitle}>Add Dish Exception</Text>
+          <View style={[styles.sheetCard, { width: dialogWidth }]} onStartShouldSetResponder={() => true}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.modalTitle}>Add dish exception</Text>
             <Text style={styles.modalSubtitle}>
-              Select a dish to explicitly allow in your meal recommendations regardless of religion filters:
+              Pick a dish to always allow in recommendations, even if your food rules would filter it out.
             </Text>
 
-            <ScrollView style={{ maxHeight: 200, marginVertical: spacing.sm }}>
+            <ScrollView style={styles.dishPickList} bounces={false} showsVerticalScrollIndicator={false}>
               {dishes.map((dish) => {
                 const selected = selectedDishForException?.id === dish.id;
                 return (
                   <Pressable
                     key={dish.id}
-                    style={[styles.dishPickRow, selected && styles.dishPickRowSelected]}
+                    style={[styles.pickOption, selected && styles.pickOptionSelected]}
                     onPress={() => setSelectedDishForException(dish)}
                   >
-                    <Text style={[styles.dishPickName, selected && styles.dishPickNameSelected]}>
+                    <View style={[styles.radio, selected && styles.radioSelected]}>
+                      {selected && <View style={styles.radioDot} />}
+                    </View>
+                    <Text
+                      style={[styles.optionText, styles.dishPickName, selected && styles.optionTextSelected]}
+                      numberOfLines={1}
+                    >
                       {dish.name}
                     </Text>
-                    <Text style={styles.dishPickCategory}>{dish.category}</Text>
+                    <View style={styles.categoryChip}>
+                      <Text style={styles.categoryChipText}>{dish.category}</Text>
+                    </View>
                   </Pressable>
                 );
               })}
@@ -571,6 +623,7 @@ export default function EditHouseholdScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
+  flex: { flex: 1 },
   content: { padding: spacing.marginMobile },
   title: { ...typography.headlineLgMobile, color: colors.onSurface },
   body: { ...typography.bodyMd, color: colors.onSurfaceVariant, marginBottom: spacing.md },
@@ -724,7 +777,14 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
     marginBottom: 4,
   },
-  breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  bufferSummaryRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  bufferSummaryText: { flex: 1, ...typography.bodyLg, fontSize: 15, color: colors.onSurface },
   breakdownLabel: { ...typography.bodyMd, color: colors.onSurfaceVariant },
   breakdownValue: { ...typography.titleMd, fontSize: 15, color: colors.onSurface },
   breakdownReserved: { ...typography.titleMd, fontSize: 15, color: colors.error },
@@ -734,7 +794,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.outlineVariant,
     marginTop: 4,
   },
-  breakdownUsableLabel: { ...typography.titleMd, fontSize: 15, color: colors.onSurface },
+  breakdownUsableLabel: { ...typography.titleMd, fontSize: 15, color: colors.onSurface, flexShrink: 1 },
   breakdownUsableValue: { ...typography.headlineLgMobile, fontSize: 20, color: colors.primary },
   goalList: { gap: spacing.xs },
   goalRow: {
@@ -810,21 +870,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center',
+    alignItems: 'center',
     padding: spacing.marginMobile,
   },
   modalCard: {
+    alignSelf: 'stretch',
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: radii.xl,
     padding: spacing.md,
     maxHeight: '90%',
-    width: '100%',
   },
   sheetCard: {
     backgroundColor: colors.surfaceContainerLowest,
-    borderTopLeftRadius: radii.xl,
-    borderTopRightRadius: radii.xl,
+    borderRadius: radii.xl,
     padding: spacing.marginMobile,
     gap: spacing.xs,
+    maxHeight: '85%',
   },
   sheetHandle: {
     alignSelf: 'center',
@@ -844,13 +905,9 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.outlineVariant,
   },
   listOptionSelected: { backgroundColor: colors.primaryContainer },
-  exceptionModalCard: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: radii.xl,
-    padding: spacing.md,
-  },
   exceptionKeyboardView: {
-    width: '100%',
+    alignSelf: 'stretch',
+    alignItems: 'center',
     justifyContent: 'center',
   },
   exceptionReasonInput: {
@@ -858,7 +915,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
   },
   modalTitle: { ...typography.titleLg, color: colors.onSurface, marginBottom: spacing.xs },
-  modalSubtitle: { ...typography.bodyMd, color: colors.onSurfaceVariant, fontSize: 13 },
+  modalSubtitle: { ...typography.bodyMd, color: colors.onSurfaceVariant, fontSize: 13, marginBottom: spacing.sm },
   modalOption: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -881,17 +938,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
   },
   applyBtn: { height: 48, minWidth: 90 },
-  dishPickRow: {
+  pickOption: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: spacing.sm,
+    minHeight: 52,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.outlineVariant,
+    borderRadius: radii.lg,
+    marginBottom: 2,
   },
-  dishPickRowSelected: { backgroundColor: colors.primaryContainer, borderRadius: radii.lg },
-  dishPickName: { ...typography.bodyLg, color: colors.onSurface },
-  dishPickNameSelected: { ...typography.titleMd, color: colors.primary },
-  dishPickCategory: { ...typography.labelLg, fontSize: 12, color: colors.onSurfaceVariant },
+  pickOptionSelected: { backgroundColor: colors.primaryContainer },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: radii.full,
+    borderWidth: 2,
+    borderColor: colors.outline,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioSelected: { borderColor: colors.primary },
+  radioDot: { width: 10, height: 10, borderRadius: radii.full, backgroundColor: colors.primary },
+  dishPickList: { maxHeight: 240, marginVertical: spacing.xs },
+  dishPickName: { flex: 1 },
+  categoryChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radii.full,
+    backgroundColor: colors.surfaceContainerHigh,
+  },
+  categoryChipText: { ...typography.labelLg, fontSize: 11, color: colors.onSurfaceVariant },
 });

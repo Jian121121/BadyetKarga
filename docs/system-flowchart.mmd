@@ -1,0 +1,98 @@
+---
+title: BadyetKarga Current System Flowchart
+---
+flowchart TD
+    START([START]) --> LAUNCH[Application Launch]
+    LAUNCH --> AUTH{Authenticated?}
+
+    AUTH -- No --> SPLASH[Splash]
+    SPLASH --> ONBOARD[Onboarding]
+    ONBOARD --> LOGIN[Login]
+    LOGIN --> REGISTER[Registration]
+    LOGIN --> FORGOT[Forgot Password]
+    REGISTER --> OTP[Email verification via EmailJS OTP]
+    OTP --> AUTH_SERVICE[Firebase Email Authentication]
+    LOGIN --> AUTH_SERVICE
+    LOGIN --> GOOGLE[Google sign-in / identity]
+    GOOGLE --> AUTH_SERVICE
+    FORGOT --> AUTH_SERVICE
+    AUTH_SERVICE --> AUTH
+
+    AUTH -- Yes --> SETTINGS{Household settings exist?}
+    SETTINGS -- No --> WELCOME[Setup Wizard: Welcome]
+    WELCOME --> HOUSEHOLD[Household Setup]
+    HOUSEHOLD --> GOALS[Select Multiple Goals]
+    GOALS --> FAMILY[Family Members]
+    FAMILY --> MEMBER[Member Profiles:<br/>Name, relationship, age, gender,<br/>favorite foods, allergies, dietary restrictions]
+    MEMBER --> AVAIL[Weekly Availability by member/day/meal]
+    AVAIL --> PANTRY_SETUP[Pantry Items]
+    PANTRY_SETUP --> COOK[Cooking Preferences:<br/>frequency, preferred cook time, meal styles]
+    COOK --> COMPLETE[Complete setup and persist settings]
+    COMPLETE --> SETTINGS
+
+    SETTINGS -- Yes --> TABS[Main App: five tabs]
+    TABS --> HOME[Home Dashboard]
+    TABS --> PLANNER[Planner]
+    TABS --> GROCERIES[Groceries]
+    TABS --> ANALYTICS[Analytics]
+    TABS --> PROFILE[Profile]
+
+    PROFILE --> FAMILY_MGMT[Family Members management]
+    FAMILY_MGMT --> MEMBER
+    PROFILE --> AVAIL_PROFILE[Weekly Availability]
+    AVAIL_PROFILE --> AVAIL
+    PROFILE --> EDIT_HOUSEHOLD[Edit Household]
+    EDIT_HOUSEHOLD --> HOUSEHOLD_DATA[Budget, buffers, religion,<br/>multiple goals, meal exceptions]
+    PROFILE --> PANTRY[Pantry]
+    PROFILE --> ACCOUNT[Account, password, privacy, about]
+
+    PLANNER --> MEAL_PLANNER[Meal Planner]
+    PLANNER --> DISH_LIBRARY[Dish Library]
+    DISH_LIBRARY --> DISH_DETAILS[Dish Details]
+    DISH_LIBRARY --> ADD_DISH[Add custom dish + ingredients]
+    MEAL_PLANNER --> PLAN_MODE{Manual select or generate week?}
+    PLAN_MODE --> MANUAL[Select dish for day and meal slot]
+    PLAN_MODE --> GENERATE[Generate weekly plan]
+    MANUAL --> VALIDATE[Validate allergy, dietary,<br/>religion/exception, meal type,<br/>availability, and plan duration]
+    GENERATE --> RECOMMEND[Multi-goal weighted recommendation]
+
+    RECOMMEND --> INPUTS[Use family members, availability,<br/>favorite foods, cooking preferences,<br/>pantry, religion, exceptions, goals]
+    INPUTS --> SERVINGS[Calculate eaters and planned servings]
+    SERVINGS --> VISITOR{Visitor buffer configured?}
+    VISITOR -- Yes --> VISITOR_ADD[Available family members + visitor buffer servings]
+    VISITOR -- No --> SERVINGS_TOTAL[Required planned servings]
+    VISITOR_ADD --> SERVINGS_TOTAL
+    SERVINGS_TOTAL --> INGREDIENT_EXPAND[Expand every selected dish to full ingredients]
+    VALIDATE -- Rejected --> REASON[Show validation reason; do not save slot]
+    VALIDATE -- Accepted --> INGREDIENT_EXPAND
+
+    INGREDIENT_EXPAND --> QUANTITY[Scale ingredient quantities by planned servings]
+    QUANTITY --> GROCERY_MERGE[Merge same ingredients across dishes]
+    GROCERY_MERGE --> PANTRY_DEDUCT[Exclude ingredients already in pantry]
+    PANTRY_DEDUCT --> PRICE[Sum estimated ingredient prices]
+    PRICE --> BUDGET_BUFFER[Total budget minus configured budget buffer]
+    BUDGET_BUFFER --> BUDGET_CHECK{Grocery total within usable budget?}
+    BUDGET_CHECK -- Yes --> CONFIRM[Confirm/save meal plan]
+    BUDGET_CHECK -- No --> OPT[Budget Optimization]
+    OPT --> SUGGEST[Substitution, optional removal,<br/>quantity adjustment, ingredient reuse]
+    SUGGEST --> RECALC[Recalculate grocery total]
+    RECALC --> BUDGET_CHECK
+
+    CONFIRM --> GROCERY_LIST[Grocery List]
+    GROCERY_LIST --> SHOP[Shopping Mode]
+    SHOP --> CHECK[Mark items purchased]
+    CHECK --> ACTUAL[Enter actual item prices]
+    ACTUAL --> TRIP[Complete shopping trip]
+    TRIP --> REMAIN[Remaining budget = budget snapshot - actual spend]
+    TRIP --> HISTORY[Shopping History / Analytics]
+    REMAIN --> HOME
+    HISTORY --> ANALYTICS
+    GROCERY_LIST --> GROCERY_LIST
+    HOME --> TABS
+
+    classDef decision fill:#fff3cd,stroke:#9a6700,color:#3d2b00;
+    classDef data fill:#e8f5e9,stroke:#2e7d32,color:#1b4332;
+    classDef external fill:#e8eefc,stroke:#405a9b,color:#1d2d50;
+    class AUTH,SETTINGS,PLAN_MODE,VISITOR,BUDGET_CHECK decision;
+    class MEMBER,AVAIL,INPUTS,SERVINGS_TOTAL,INGREDIENT_EXPAND,QUANTITY,GROCERY_MERGE,PANTRY_DEDUCT,PRICE,BUDGET_BUFFER,REMAIN,HISTORY data;
+    class AUTH_SERVICE,GOOGLE,OTP external;

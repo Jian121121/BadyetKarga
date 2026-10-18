@@ -1,13 +1,17 @@
 import { useEffect } from 'react';
-import { View, Image, StyleSheet } from 'react-native';
+import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import FadeIn from '../../../shared/motion/FadeIn';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../../../app/navigation/types';
 import { hasSeenOnboarding } from '../../../services/onboardingService';
+import BrandLogo from '../../../shared/components/BrandLogo';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Splash'>;
 
 export default function SplashScreen({ navigation }: Props) {
+  const { width, height } = useWindowDimensions();
+  const logoWidth = Math.round(Math.min(width * 0.72, height * 0.38, 340));
+
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(async () => {
@@ -23,13 +27,8 @@ export default function SplashScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <FadeIn>
-        <Image
-          source={require('../../../../assets/logo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-          accessibilityLabel="BadyetKarga"
-        />
+      <FadeIn style={styles.center}>
+        <BrandLogo variant="full" size={logoWidth} />
       </FadeIn>
     </View>
   );
@@ -38,14 +37,15 @@ export default function SplashScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    width: '100%',
+    minHeight: '100%',
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#ffffff',
-    paddingHorizontal: 48,
   },
-  logo: {
+  center: {
     width: '100%',
-    maxWidth: 280,
-    height: 280,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

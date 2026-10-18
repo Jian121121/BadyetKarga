@@ -17,3 +17,4 @@ TypeScript, Zustand, expo-sqlite, Firebase Auth.
 ## Commands
 - `npm start` (Expo dev server), `npm run android`, `npm run web`
 - Type check: `npx tsc --noEmit`
+- Web build: `npx expo export -p web` → `dist/`; live at https://badyetkarga.vercel.app (Vercel builds on push to `main`)

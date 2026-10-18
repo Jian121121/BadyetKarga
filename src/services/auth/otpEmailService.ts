@@ -9,13 +9,14 @@
  *    - Subject: BadyetKarga verification code
  *    - Body: Your BadyetKarga verification code is {{otp_code}}. It expires in 10 minutes.
  *    → copy the Template ID.
- * 3. Account → General → copy the Public Key and Private Key.
- * 4. Put all four in .env.local and restart Expo.
+ * 3. Account → General → copy the Public Key.
+ * 4. Account → Security: leave "Use Private Key" OFF (a private key would ship in the public web bundle);
+ *    turn on "Allow EmailJS API for non-browser applications" for the phone app; set a request limit.
+ * 5. Put the service ID, template ID, and public key in .env.local and restart Expo.
  */
 const SERVICE_ID = process.env.EXPO_PUBLIC_EMAILJS_SERVICE_ID;
 const TEMPLATE_ID = process.env.EXPO_PUBLIC_EMAILJS_TEMPLATE_ID;
 const PUBLIC_KEY = process.env.EXPO_PUBLIC_EMAILJS_PUBLIC_KEY;
-const PRIVATE_KEY = process.env.EXPO_PUBLIC_EMAILJS_PRIVATE_KEY;
 
 const EXPIRY_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
@@ -29,9 +30,9 @@ interface PendingCode {
 const pendingCodes = new Map<string, PendingCode>();
 
 function assertConfigured() {
-  if (!SERVICE_ID || !TEMPLATE_ID || !PUBLIC_KEY || !PRIVATE_KEY) {
+  if (!SERVICE_ID || !TEMPLATE_ID || !PUBLIC_KEY) {
     throw new Error(
-      'Code sending is not configured. Add the EmailJS service ID, template ID, public key, and private key to .env.local, then restart Expo.'
+      'Code sending is not configured. Add the EmailJS service ID, template ID, and public key to .env.local, then restart Expo.'
     );
   }
 }
@@ -53,7 +54,6 @@ export async function sendVerificationCode(email: string): Promise<void> {
       service_id: SERVICE_ID,
       template_id: TEMPLATE_ID,
       user_id: PUBLIC_KEY,
-      accessToken: PRIVATE_KEY,
       template_params: {
         to_email: to,
         otp_code: code,
@@ -64,6 +64,11 @@ export async function sendVerificationCode(email: string): Promise<void> {
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
+    if (/private key|access ?token|strict/i.test(detail)) {
+      throw new Error(
+        'EmailJS requires a private key. In EmailJS → Account → Security, turn off "Use Private Key".'
+      );
+    }
     if (/non-browser/i.test(detail)) {
       throw new Error(
         'EmailJS blocked the request. In EmailJS → Account → Security, enable "Allow EmailJS API for non-browser applications".'

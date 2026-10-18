@@ -22,6 +22,7 @@ Screen → Zustand store action → repository (SQLite on native, `localStorage`
 - `vercel.json`: Vercel runs `npx expo export -p web`, serves `dist/`, rewrites all paths to `/` (single-page app)
 - Build on Vercel, not locally: the CLI won't upload `dist/assets/node_modules/` (fonts/icons)
 - `EXPO_PUBLIC_*` keys live in Vercel env vars (production + preview); they ship in the bundle
+- Wide browser windows (≥600px) show a centered 430px phone frame (`shared/web/installPhoneFrame.ts`, called from `index.ts`); screens size from `useAppDimensions()` instead of `useWindowDimensions()`
 - `metro.config.js` adds `wasm` so `expo-sqlite`'s web worker resolves (web still uses the mock)
 
 ## Diagrams

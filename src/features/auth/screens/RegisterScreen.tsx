@@ -9,8 +9,8 @@ import {
   Platform,
   ScrollView,
   Modal,
-  useWindowDimensions,
 } from 'react-native';
+import { useAppDimensions } from '../../../shared/utils/appDimensions';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -32,7 +32,7 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
 export default function RegisterScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useAppDimensions();
   const modalWidth = Math.min(windowWidth - 48, 420);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');

@@ -10,8 +10,8 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
-  useWindowDimensions,
 } from 'react-native';
+import { useAppDimensions } from '../../../shared/utils/appDimensions';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { usePreventRemove } from '@react-navigation/native';
@@ -87,7 +87,7 @@ function formatPeso(n: number) {
 }
 
 export default function AddDishScreen({ navigation, route }: Props) {
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth } = useAppDimensions();
   const dialogWidth = Math.min(windowWidth - 48, 420);
   const editId = route.params?.dishId;
   const isEdit = editId !== undefined;

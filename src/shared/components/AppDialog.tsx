@@ -1,4 +1,5 @@
-import { Modal, View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
+import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { useAppDimensions } from '../utils/appDimensions';
 import { colors, typography, spacing, radii } from '../theme';
 import { useDialogStore } from '../../store/dialogStore';
 import GlassView from './GlassView';
@@ -10,7 +11,7 @@ import GlassView from './GlassView';
 export default function AppDialog() {
   const current = useDialogStore((s) => s.current);
   const settle = useDialogStore((s) => s.settle);
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth } = useAppDimensions();
   const cardWidth = Math.min(windowWidth - 48, 340);
 
   if (!current) return null;

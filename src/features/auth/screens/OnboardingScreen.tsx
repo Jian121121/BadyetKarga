@@ -9,9 +9,9 @@ import {
   Animated,
   Platform,
   ScrollView,
-  useWindowDimensions,
   type ViewToken,
 } from 'react-native';
+import { useAppDimensions } from '../../../shared/utils/appDimensions';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -61,7 +61,7 @@ const SLIDES: Slide[] = [
 const NATIVE_DRIVER = Platform.OS !== 'web';
 
 export default function OnboardingScreen({ navigation }: Props) {
-  const { width, height } = useWindowDimensions();
+  const { width, height } = useAppDimensions();
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Slide>>(null);
   const [index, setIndex] = useState(0);

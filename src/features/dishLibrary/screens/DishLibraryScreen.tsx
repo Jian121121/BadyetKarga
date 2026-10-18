@@ -8,8 +8,8 @@ import {
   TextInput as RNTextInput,
   StyleSheet,
   Modal,
-  useWindowDimensions,
 } from 'react-native';
+import { useAppDimensions } from '../../../shared/utils/appDimensions';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -41,7 +41,7 @@ type Props = NativeStackScreenProps<PlannerStackParamList, 'DishLibrary'>;
 
 export default function DishLibraryScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth } = useAppDimensions();
   const menuWidth = Math.min(windowWidth - 48, 320);
   const lockSlot = route.params?.lockSlot === true;
   const currentUser = useAuthStore((s) => s.currentUser);

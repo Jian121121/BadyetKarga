@@ -9,7 +9,8 @@ Back to [[Home]]
 - Dialogs: `notify` / confirm helpers in `shared/utils/confirm.ts` (not `Alert`). Centered sheets use a pixel width from the window (`Math.min(windowWidth - 48, …)`) so padding cannot push the card off the right edge.
 - Errors: services throw `Error` with user-facing messages; stores put them in `error`.
 - Platform split: `Platform.OS === 'web'` → localStorage mock, else SQLite.
-- Secrets in `.env.local` as `EXPO_PUBLIC_*`; never commit or print them.
+- Secrets in `.env.local` as `EXPO_PUBLIC_*`; never commit or print them. Everything `EXPO_PUBLIC_*` ships in the public web bundle, so never put private keys there.
+- Size layouts with `useAppDimensions()` (`shared/utils/appDimensions.ts`), not `useWindowDimensions()`, so they fit the desktop phone frame.
 - Mermaid diagrams follow `.github/instructions/mermaid.instructions.md`.
 
 ## Branding

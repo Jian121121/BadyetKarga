@@ -6,7 +6,7 @@ Back to [[Home]] · Tables in [[Database]] · Store in [[State]]
 - `src/features/auth/screens/RegisterScreen.tsx`: form → OTP modal → create
 - `src/store/authStore.ts`: `register`, `login`, `loginWithGoogle`, `logout`
 - `src/services/auth/firebaseAuthService.ts`: Firebase email/password, `normalizeGmail`
-- `src/services/auth/otpEmailService.ts`: 6-digit code via EmailJS (10 min, 5 attempts)
+- `src/services/auth/otpEmailService.ts`: 6-digit code via EmailJS (10 min, 5 attempts); public key only, no private key (it would ship in the web bundle); EmailJS "Use Private Key" must stay off
 - `src/services/auth/googleAuth.ts`: Google sign-in
 - `src/services/database/userRepository.ts`: local `users` (SQLite / web localStorage)
 

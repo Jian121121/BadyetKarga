@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { View, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import { useAppDimensions } from '../../../shared/utils/appDimensions';
 import FadeIn from '../../../shared/motion/FadeIn';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../../../app/navigation/types';
@@ -9,7 +10,7 @@ import BrandLogo from '../../../shared/components/BrandLogo';
 type Props = NativeStackScreenProps<AuthStackParamList, 'Splash'>;
 
 export default function SplashScreen({ navigation }: Props) {
-  const { width, height } = useWindowDimensions();
+  const { width, height } = useAppDimensions();
   const logoWidth = Math.round(Math.min(width * 0.72, height * 0.38, 340));
 
   useEffect(() => {

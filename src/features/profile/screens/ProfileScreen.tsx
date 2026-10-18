@@ -9,8 +9,8 @@ import {
   Switch,
   Image,
   Alert,
-  useWindowDimensions,
 } from 'react-native';
+import { useAppDimensions } from '../../../shared/utils/appDimensions';
 import BrandLogo from '../../../shared/components/BrandLogo';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -41,7 +41,7 @@ function initials(name?: string) {
 
 export default function ProfileScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth } = useAppDimensions();
   const dialogWidth = Math.min(windowWidth - 48, 400);
   const { currentUser, logout, updateAvatar } = useAuthStore();
   const settings = useHouseholdStore((s) => s.settings);

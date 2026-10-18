@@ -1,4 +1,5 @@
-import { View, Text, Image, ScrollView, Pressable, StyleSheet, Modal, useWindowDimensions } from 'react-native';
+import { View, Text, Image, ScrollView, Pressable, StyleSheet, Modal } from 'react-native';
+import { useAppDimensions } from '../../../shared/utils/appDimensions';
 import { useState } from 'react';
 import { MaterialIcons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -55,7 +56,7 @@ const MEAL_STYLES: Array<{
 ];
 
 export default function WizardCookingScreen({ navigation }: Props) {
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth } = useAppDimensions();
   const dialogWidth = Math.min(windowWidth - 48, 420);
   const cookFrequency = useSetupWizardStore((s) => s.cookFrequency);
   const preferredCookTime = useSetupWizardStore((s) => s.preferredCookTime);

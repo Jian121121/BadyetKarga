@@ -1,4 +1,5 @@
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useAppDimensions } from '../../../shared/utils/appDimensions';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors, radii, spacing, typography } from '../../../shared/theme';
 
@@ -46,7 +47,7 @@ export default function EmptySlotPicker({
   onClose,
   onSelect,
 }: EmptySlotPickerProps) {
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth } = useAppDimensions();
   const dialogWidth = Math.min(windowWidth - 48, 420);
   const groups = groupByDay(slots);
 

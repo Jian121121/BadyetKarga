@@ -7,8 +7,8 @@ import {
   Modal,
   TextInput as RNTextInput,
   ActivityIndicator,
-  useWindowDimensions,
 } from 'react-native';
+import { useAppDimensions } from '../../../shared/utils/appDimensions';
 import { MaterialIcons } from '@expo/vector-icons';
 import { buildGoogleIdentityFromEmail } from '../../../services/auth/googleAuth';
 import { useAuthStore } from '../../../store/authStore';
@@ -32,7 +32,7 @@ export default function GoogleSignInButton({
   const loginWithGoogle = useAuthStore((s) => s.loginWithGoogle);
   const isLoading = useAuthStore((s) => s.isLoading);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth } = useAppDimensions();
   const dialogWidth = Math.min(windowWidth - 48, 400);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');

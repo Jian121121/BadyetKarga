@@ -2,6 +2,7 @@
 
 Back to [[Home]] · One line per notable change, newest first.
 
+- 2026-10-18: EmailJS uses the public key only (private key removed from code, `.env.local`, Vercel); desktop web shows a phone-width frame (`useAppDimensions`) → [[Auth]], [[Architecture]]
 - 2026-10-18: Web build hosted on Vercel (https://badyetkarga.vercel.app), built on Vercel from GitHub `Jian121121/BadyetKarga`; `metro.config.js` adds `wasm` asset ext → [[Architecture]]
 - 2026-10-12: Login, profile, and the remaining centered sheets use a screen-fit width so they no longer clip on the right → [[Conventions]]
 - 2026-10-12: Email verification code modal stays centered → [[Conventions]]

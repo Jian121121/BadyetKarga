@@ -8,8 +8,8 @@ import {
   StyleSheet,
   Modal,
   Animated,
-  useWindowDimensions,
 } from 'react-native';
+import { useAppDimensions } from '../../../shared/utils/appDimensions';
 import { MaterialIcons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { SetupWizardStackParamList } from '../../../app/navigation/types';
@@ -33,7 +33,7 @@ type Props = NativeStackScreenProps<SetupWizardStackParamList, 'Household'>;
 const BUDGET_SUGGESTIONS = [2000, 3000, 4500, 6000, 8000];
 
 export default function WizardHouseholdScreen({ navigation }: Props) {
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth } = useAppDimensions();
   const dialogWidth = Math.min(windowWidth - 48, 420);
   const {
     householdName,
